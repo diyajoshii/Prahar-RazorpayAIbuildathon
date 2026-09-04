@@ -191,6 +191,19 @@ class Routing:
         }
 
 
+# A cause-specific reason takes precedence over the class-level one where the
+# class label alone would mislead the audit trail. SUCCESS maps to
+# RETRYABLE_LIQUIDITY for totality, but a mandate whose last attempt *succeeded*
+# has not had a balance problem -- it is simply at the start of a fresh cycle,
+# and saying "balance was short" in the decision log would be false.
+CAUSE_REASON: dict[Cause, str] = {
+    Cause.SUCCESS:
+        "No failure to diagnose: the last observed attempt on this mandate "
+        "succeeded, so this is the opening attempt of a new cycle with the full "
+        "rail budget available.",
+}
+
+
 def route(parsed: ParsedCause) -> Routing:
     """Turn a classified cause into the set of actions the agent may consider.
 
@@ -198,11 +211,12 @@ def route(parsed: ParsedCause) -> Routing:
     mandate was never retried, the answer is a lookup, not an inference.
     """
     cc = parsed.cause_class
+    reason = CAUSE_REASON.get(parsed.cause) or ROUTING_REASON[cc]
     return Routing(
         cause=parsed.cause,
         cause_class=cc,
         allowed=ALLOWED_ACTIONS[cc],
-        reason=ROUTING_REASON[cc],
+        reason=reason,
         confidence=parsed.confidence,
         method=parsed.method,
     )

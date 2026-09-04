@@ -162,16 +162,21 @@ mandate that cannot be debited.
 | Cause taxonomy + routing | `prahar/causes.py` | done |
 | LLM decline parser | `prahar/llm.py` | done |
 | Parser accuracy test | `tests/test_cause_parser.py` | done |
-| Cash calendar | `prahar/calendar.py` | **written, untested** |
-| Propensity model | `prahar/propensity.py` | not started |
-| Consequence model | `prahar/consequence.py` | not started |
-| Allocator | `prahar/allocator.py` | not started |
-| Commons layer | `prahar/commons.py` | not started |
-| Audit trail | `prahar/audit.py` | not started |
-| Baselines A0–A3 | `baselines/` | not started |
-| Eval harness | `eval/run.py` | not started |
-| Sensitivity + break-even | `eval/sensitivity.py` | not started |
-| Decision trace HTML | `eval/trace.py` | not started |
+| Rules loader | `prahar/rules.py` | done |
+| Cash calendar | `prahar/calendar.py` | done, **tested** |
+| Cash calendar test | `tests/test_calendar.py` | done |
+| Propensity model | `prahar/propensity.py` | done |
+| Consequence model | `prahar/consequence.py` | done |
+| Allocator | `prahar/allocator.py` | done |
+| Commons layer | `prahar/commons.py` | done |
+| Audit trail | `prahar/audit.py` | done |
+| Baseline A0 | `baselines/a0_fixed.py` | done |
+| Arms A1-A4 | `AllocatorConfig.arm()` | done (one flag per rung) |
+| Eval harness | `eval/harness.py`, `eval/run.py` | done |
+| Sensitivity + break-even | `eval/sensitivity.py` | done |
+| Decision trace HTML | `eval/trace.py` | done |
+| Hidden-state tripwire | `eval/hidden_state_guard.py` | done |
+| Invariant tests | `tests/test_invariants.py` | done |
 
 ### Verified results so far
 
