@@ -1,5 +1,7 @@
 .env
 .env.*
+# The template MUST ship: it names the required keys and never holds one.
+!.env.example
 *.pyc
 __pycache__/
 .venv/
