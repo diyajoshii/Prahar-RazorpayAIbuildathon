@@ -14,25 +14,130 @@ Every retry engine optimises `P(this attempt succeeds)`. In India that is the wr
 
 So the real question is not "will this work?" but **"is this the best use of one of my four irreplaceable, customer-billed attempts?"** — and sometimes the answer is to spend none.
 
-## Status
+## The objective
 
-| Component | State |
+```
+EV(EXECUTE at t) =   P(success|t) · amount
+                   − P(fail|t)   · bounce_fee(bank, attempt_index)
+                   − P(fail|t)   · ΔP(cancellation) · remaining_mandate_value
+```
+
+Every term is already denominated in rupees — the bank's published fee schedule, the mandate's own remaining value — so **there are no tunable weights**. When asked how the weights were chosen, the answer is that there are none. `tests/test_invariants.py` enforces this: a test fails if a weight-shaped name ever appears in policy code.
+
+A **price** (late fee, bounce fee) enters the objective and can be traded off. A **deadline** (DPD/bureau reporting, insurance lapse, the Nth consecutive SIP miss) is a hard constraint and is never priced — there is deliberately no function in the codebase that returns a rupee value for a deadline, because an optimiser that can price a credit file will eventually sell one.
+
+## Architecture
+
+```
+SENSE      upcoming debit · payer history · bank · mandate metadata
+   ↓
+DIAGNOSE   cause classification (LLM for the language, rules for the money)
+   ↓
+DECIDE     EV search over a bounded action set, under hard constraints
+   ↓
+ACT        execute / notify / re-mandate / defer / stop
+   ↓
+LOG        cause, probability, rupee terms, action, rule fired, regulation cited
+```
+
+Five actions and no others. `EXECUTE` is **absent from the action set** for structurally dead causes — removed, not disfavoured — so no amount of expected-value optimism can spend a capped attempt on a mandate that cannot be debited.
+
+| Module | What it does |
 |---|---|
-| `rules/india_rails.yaml` — constraints as config | done |
-| `data/generator.py` — synthetic world | done, **frozen** |
-| `tests/test_world_calibration.py` | done |
-| cause router + LLM parser | next |
-| cash calendar, propensity model | pending |
-| allocator, commons layer | pending |
-| evaluation, sensitivity, break-even | pending |
+| `prahar/rules.py` | Parses `india_rails.yaml`; hands back the `source` behind every number |
+| `prahar/causes.py` | cause → class → permitted actions, deterministic and auditable |
+| `prahar/llm.py` | Classifies messy bank decline strings. A language problem, so a model fits |
+| `prahar/calendar.py` | Per-payer liquidity rhythm from debit outcomes alone |
+| `prahar/propensity.py` | LightGBM `P(success \| context)`, payer-split, Platt-calibrated |
+| `prahar/consequence.py` | Prices vs deadlines; cancellation hazard estimated from observables |
+| `prahar/allocator.py` | The EV search. Can choose to spend nothing |
+| `prahar/commons.py` | Cross-mandate sequencing on one payer's shared balance |
+| `prahar/audit.py` | Every decision, every rejected candidate, every citation |
+
+## The commons layer
+
+A payer holds an EMI, a SIP, an insurance premium and a subscription against one bank account, and Indian due dates cluster at the month boundary — exactly when balances are thinnest. When the balance cannot cover all of them, every merchant retries independently and they all detonate, each failure carrying its own bounce fee. That is how a ₹2,950 month is built: five SIPs, one date, one short balance, five penalties.
+
+Individually rational retries produce a collectively terrible outcome. Prahar sequences them: one bounce fee instead of five.
+
+The claim is deliberately narrow. A deferred mandate is not made worse off **because its attempt today was already doomed against a short balance**. If the balance could have covered it, deferring genuinely harms that merchant and the argument collapses — so the layer engages only when estimated capacity cannot cover the full set, and its engagement rate is reported rather than assumed.
+
+This requires visibility across *multiple merchants'* mandates against one payer. That is the payment-aggregator layer — where Razorpay sits, and where a merchant-side tool structurally cannot go.
+
+## Evaluation
+
+Each rung of the ladder adds exactly one thing, so every gain has an owner. A test asserts that adjacent rungs differ by exactly one capability flag.
+
+| Arm | Adds |
+|---|---|
+| `A0` | fixed T+1/T+3/T+5 (industry baseline) |
+| `A1` | + cause routing |
+| `A2` | + cash-calendar timing |
+| `A3` | + rupee cost terms |
+| `A4` | + commons layer (full Prahar) |
+
+A0 is given the rail's attempt cap and a 09:30 slot outside the blocked windows **on purpose**. Scheduling A0 into 10:00–13:00 would have harvested a large fake improvement from blocked-window avoidance alone, and attributing that to intelligence would be dishonest.
+
+Six metrics, mean ± 95% CI over 20 seeds, with the generator's SHA-256 printed alongside: ₹ recovered · attempts spent · **₹ bounce fees inflicted on customers** (nobody else reports this) · mandates lost to auto-cancellation · contacts sent · ₹ recovered per attempt.
+
+See `RESULTS.md` for the measured numbers, including where Prahar does **not** beat the baseline.
+
+## What was hard — three bugs that had flattered the results
+
+Each of these made the numbers look better, which is what made them dangerous.
+
+1. **Feature leakage through the liquidity model.** The cash calendar was fitted over all six months and then used to score month-one attempts. Splitting train/test by payer — which the spec correctly demands — does not catch this, because it is a separate axis: the payer split asks "does this generalise to a new person", walk-forward asks "was this knowable at the time". Fixing it dropped held-out AUC from 0.916 to 0.873 and cut `liquidity_p`'s share of model gain from 33% to 8%. Most of the headline feature's apparent value was the leak.
+
+2. **Stale due dates in the harness.** Mandates recur monthly, but the harness recorded each mandate's due date once with `setdefault`. A0's entire retry calendar therefore sat in the past from cycle two onward and it silently stopped retrying — manufacturing a fake 4.6× win for A1.
+
+3. **A cancellation hazard that counted the same death repeatedly.** A revoked mandate returns the same dead cause on every subsequent attempt, and 74% of dead-cause observations turned out to be repeats on an already-dead mandate. The estimator read a marginal hazard of 0.30 at two consecutive failures against a true 0.12, so the allocator priced a 15-cycle mandate as nearly certain to die and refused attempts that were worth making. Death is now absorbing, as in any hazard model, and the estimator recovers the generator's true hazard from observables alone.
+
+The generator was frozen in its own commit *before* any policy code existed, so none of these could be "fixed" by adjusting the world. `eval/run.py` prints the generator's SHA-256 with every result; if it does not match the freeze commit, the numbers were produced against a different world.
+
+## Honest limitations
+
+These belong on camera, not in a footnote.
+
+1. **The data is synthetic**, calibrated to published Indian figures (68–74% blended D2C success; month-end degradation; >20M monthly mandate revocations). The generator is published so the result is reproducible and contestable, but it is not production data.
+2. **Behavioural evidence is transplanted** from charity fundraising, retail email and Ugandan microfinance. The *shape* transfers; the coefficient does not.
+3. **The world models no response to being notified.** `NOTIFY_PREDEBIT` costs zero attempts and zero rupees and is legally mandatory anyway, but this evaluation claims **no recovery lift from it**, because inventing a payer-response coefficient is exactly the fabrication limitation 2 warns against. Contacts are reported as a count only.
+4. **The commons layer needs real merchant agreements and consent design** before production. Cross-merchant coordination raises genuine questions about consent and inter-merchant fairness that a demo cannot settle.
+5. **No peer-reviewed benchmark exists** for involuntary-churn recovery, so the comparison is to industry-standard fixed schedules, not to a published state of the art.
+6. **Cold-start payers fall back to priors**, and the fallback share is reported with every result rather than hidden.
+7. **The salary-day point estimate is weak** — about 1.7× better than chance. That is structural: a fixed-schedule policy only ever samples a payer's due days, so most day-bins hold no evidence. A policy's own action distribution bounds what it can learn. It is reported as a diagnostic and never fed into the objective.
+8. **Three values in `india_rails.yaml` are tagged `assumption`**, not documented: the NACH re-presentation count, card e-mandate attempt parity, and the auto-cancellation threshold. They are printed with every result so a modelling choice is never mistaken for a published figure.
 
 ## Run
 
 ```bash
 pip install -r requirements.txt
-python data/generator.py                    # world summary
-python tests/test_world_calibration.py      # calibration against published figures
 ```
 
-See `FREEZE.md` for why the generator was committed before any policy code, and
-what the policy is and is not allowed to observe.
+```bash
+python -m pytest tests/ -q
+```
+
+```bash
+python -m eval.run --seeds 20 --payers 120
+```
+
+```bash
+python -m eval.sensitivity --sweep all
+```
+
+```bash
+python -m eval.trace
+```
+
+Individual components self-report:
+
+```bash
+python -m prahar.rules
+python -m prahar.consequence
+python -m prahar.propensity
+python data/generator.py
+```
+
+`python -m prahar.llm` is a diagnostic that prints the active provider; it needs `GOOGLE_API_KEY` or `ANTHROPIC_API_KEY` in a gitignored `.env` (see `.env.example`). Nothing in the evaluation makes a network call — the cause parser falls back to the deterministic rules table so results stay reproducible.
+
+See `FREEZE.md` for why the generator was committed before any policy code, and exactly what the policy is and is not allowed to observe. `CLAUDE.md` holds the invariants; `SPEC.md` holds the problem and the build order.
