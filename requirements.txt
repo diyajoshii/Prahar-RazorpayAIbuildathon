@@ -1,0 +1,7 @@
+numpy>=1.26
+pandas>=2.0
+lightgbm>=4.0
+PyYAML>=6.0
+matplotlib>=3.8
+anthropic>=0.40
+python-dotenv>=1.0

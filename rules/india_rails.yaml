@@ -1,0 +1,189 @@
+# ---------------------------------------------------------------------------
+# PRAHAR — regulatory and commercial constraints, as configuration.
+#
+# Every rule carries a `source`. The audit trail quotes it, so any money
+# decision can be traced back to the regulation that bounded it.
+#
+# CONFIDENCE LEVELS
+#   documented : published by NPCI / RBI / a bank, cited below.
+#   assumption : our modelling choice. Stated so it can be challenged.
+#
+# When NPCI moves a window (as it did in 2026), this file changes. No code does.
+# ---------------------------------------------------------------------------
+
+meta:
+  version: "1.0"
+  compiled: "2026-09-05"
+
+# ===========================================================================
+# RAILS
+# India runs recurring debits over three distinct rails with DIFFERENT rules.
+# Conflating them is the most common error in this problem space:
+# the four-attempt cap is a UPI AutoPay rule; the customer bounce fee is a
+# NACH/ECS phenomenon. A payer typically holds mandates on BOTH.
+# ===========================================================================
+
+rails:
+
+  UPI_AUTOPAY:
+    confidence: documented
+    max_attempts_per_cycle: 4        # 1 execution + up to 3 retries
+    attempts_source: "NPCI UPI AutoPay execution and retry rules"
+
+    blocked_execution_windows:       # NPCI Traffic Management, peak-hour block
+      - "10:00-13:00"
+      - "17:00-21:30"
+    windows_source: "NPCI Traffic Management (2026). Live effect: morning EMI/SIP failures reported May 2026."
+
+    afa_threshold_inr: 15000
+    afa_source: "RBI e-mandate framework; AFA required on debits above this value"
+
+    high_value_cap_inr: 100000       # insurance premium, SIP, credit-card bill
+    high_value_source: "Razorpay, UPI Autopay vs Card e-Mandates (2026)"
+
+    customer_bounce_fee: false
+    bounce_fee_note: >
+      ASSUMPTION. No per-failure bank charge to the customer is documented for
+      UPI AutoPay declines. Fees below are modelled on NACH/ECS only. If a
+      documented UPI AutoPay penalty is found, set this true and the objective
+      picks it up with no code change.
+
+  NACH:
+    confidence: documented
+    max_attempts_per_cycle: 3        # ASSUMPTION — see note
+    attempts_source: >
+      ASSUMPTION. NACH re-presentation practice varies by sponsor bank and
+      corporate. Modelled conservatively at 3. Not an NPCI-published universal cap.
+
+    blocked_execution_windows: []    # NACH is batch-settled, not intraday-blocked
+
+    customer_bounce_fee: true
+    bounce_fee_source: "Bank-published NACH/ECS return charge schedules; BusinessToday (Apr 2026)"
+
+  CARD_EMANDATE:
+    confidence: documented
+    max_attempts_per_cycle: 4        # ASSUMPTION, aligned to UPI for comparability
+    attempts_source: "ASSUMPTION for modelling parity."
+    blocked_execution_windows: []
+    afa_threshold_inr: 15000
+    afa_source: "RBI: AFA required each cycle above this value (raised from 5000 on 2022-06-16)"
+    customer_bounce_fee: false
+
+# ===========================================================================
+# CUSTOMER CONTACT — binding on every rail
+# ===========================================================================
+
+customer_contact:
+  confidence: documented
+  allowed_window: "08:00-19:00"
+  source: "RBI directive to banks/NBFCs/ARCs on recovery agents (Aug 2022): no contact before 8am or after 7pm."
+  prohibited:
+    - intimidation or harassment, verbal or physical
+    - threatening or anonymous calls
+    - false or misleading representation
+  stop_on_optout: true
+
+pre_debit_notice:
+  confidence: documented
+  hours_before: 24
+  source: "RBI e-mandate framework / NPCI"
+  exempt_mcc:
+    4784: "NETC FASTag auto-replenishment"
+    7412: "RuPay NCMC auto-replenishment"
+  exempt_source: "NPCI, per RBI statement of 2024-06-07"
+  note: >
+    This notice is LEGALLY REQUIRED and normally wasted as compliance overhead.
+    Prahar treats it as the zero-cost intervention channel.
+
+# ===========================================================================
+# BOUNCE FEES — charged BY THE BANK TO THE CUSTOMER, per failed debit.
+# Applies to NACH/ECS returns for insufficient funds. Escalating tiers are
+# real: a fixed retry calendar is structurally fee-maximising.
+# Values in INR, before GST. Index = attempt number; last value repeats.
+# ===========================================================================
+
+bounce_fees_inr:
+  confidence: documented
+  source: "Bank-published NACH/ECS return charge schedules (2026)"
+  gst_rate: 0.18
+  charged_on_causes: [INSUFFICIENT_FUNDS]     # technical declines do not bounce
+  by_bank:
+    HDFC:        [450, 500, 550]
+    ICICI:       [500]
+    AXIS:        [500, 550]
+    KOTAK:       [500]
+    IDFC_FIRST:  [350, 350, 350, 750]
+    SBI:         [250]
+    PNB:         [250]
+    BANK_OF_INDIA: [250]
+    IOB:         [250]
+    CANARA:      [300]                        # slab-based 300-2000; low end modelled
+    FEDERAL:     [250, 500]
+    INDUSIND:    [350, 500]
+    YES:         [200]
+    SOUTH_INDIAN: [50]
+  default: [400]
+
+# ===========================================================================
+# OBLIGATION CLASSES — the price/deadline model.
+#
+#   price_*   : a rupee cost, goes into the objective.
+#   deadline  : a hard limit, goes into the constraint set. NEVER priced.
+#
+# Modelling a bureau report or a lapsed policy as a "price" would let the
+# optimiser sell someone's credit file for a few hundred rupees. It cannot.
+# ===========================================================================
+
+obligation_classes:
+
+  CREDIT:
+    description: "Loan EMI, credit card bill"
+    price_late_fee_inr: 500
+    price_source: "ASSUMPTION. Typical late fee; varies by lender."
+    deadline_days_after_due: 3
+    deadline_reason: "DPD monitoring begins day 1; bureau reporting risk builds within the first 30 days."
+    deadline_source: "Lender DPD/SMA classification practice"
+    deferrable: true               # only inside the deadline
+
+  INSURANCE:
+    description: "Life/health premium"
+    price_late_fee_inr: 250
+    deadline_days_after_due: 15
+    deadline_reason: "Policy lapse at end of grace period. Losing cover is not a priceable harm."
+    deadline_source: "ASSUMPTION. Grace periods commonly 15 days (monthly mode)."
+    deferrable: true
+
+  INVESTMENT:
+    description: "Mutual fund SIP"
+    price_late_fee_inr: 0
+    deadline_days_after_due: 10
+    max_consecutive_failures: 3
+    deadline_reason: "AMC auto-cancels the SIP after repeated consecutive bounces."
+    deadline_source: "Fund-house practice; commonly 3 consecutive misses."
+    deferrable: true
+
+  UTILITY:
+    description: "Electricity, broadband, telecom"
+    price_late_fee_inr: 100
+    deadline_days_after_due: 12
+    deadline_reason: "Service disconnection; reconnection charges."
+    deadline_source: "ASSUMPTION"
+    deferrable: true
+
+  SUBSCRIPTION:
+    description: "OTT, SaaS, membership"
+    price_late_fee_inr: 0
+    deadline_days_after_due: 30
+    deadline_reason: "Service interruption only. No third-party consequence."
+    deferrable: true               # the freely-deferrable class
+
+# ===========================================================================
+# MANDATE LIFECYCLE
+# ===========================================================================
+
+mandate:
+  auto_cancel_after_consecutive_failures: 5
+  auto_cancel_source: >
+    ASSUMPTION. Real thresholds vary by biller. Business Standard reports
+    >20M UPI AutoPay revocations/month driven by low balances, so the
+    mechanism is real even where the exact threshold is not published.
