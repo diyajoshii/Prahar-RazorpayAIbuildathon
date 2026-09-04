@@ -271,13 +271,21 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
     propensity = None
     if arm != "A0":
         calendars = WalkForwardCalendars(hist, bank_of)
-        if cfg.use_calendar:
-            rows, labels, groups = contexts_from_history(hist, meta, bank_of, calendars)
-            if len(rows) > 300:
-                propensity = PropensityModel(seed=seed).fit(rows, labels, groups)
-                m.propensity_auc = propensity.report.auc
-            m.cold_start_share = calendars.cold_start_share_at(
-                (warmup_until.year, warmup_until.month))
+        rows, labels, groups = contexts_from_history(hist, meta, bank_of, calendars)
+        if len(rows) > 300:
+            # EVERY arm above A0 gets the same learned model. Only A2+ may see
+            # the liquidity features. Previously the model itself was gated on
+            # `use_calendar`, so A1 had no model at all and the A1 -> A2 delta
+            # measured "calendar + LightGBM" rather than "calendar" -- which is
+            # the one quantity the project's central claim rests on.
+            propensity = PropensityModel(
+                seed=seed, use_liquidity=cfg.use_calendar
+            ).fit(rows, labels, groups)
+            m.propensity_auc = propensity.report.auc
+        m.cold_start_share = calendars.cold_start_share()
+
+        # A starved model is worse than a crash, because it looks like a result.
+        _assert_calendar_is_live(calendars, hist, cfg.use_calendar, arm)
 
     allocator = Allocator(rules, consequence, propensity, calendars, cfg)
     commons = Commons(allocator, CapacityModel.fit(hist)) if cfg.use_commons else None
@@ -303,7 +311,7 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
             # the warm-up month -- that one is fitted on strictly earlier data
             # and is 100% cold by construction, which would be a meaningless
             # figure to publish.
-            m.cold_start_share = calendars.cold_start_share_at(last_month)
+            m.cold_start_share = calendars.cold_start_share()
             if commons is not None:
                 commons.capacity = CapacityModel.fit(hist)
 
@@ -343,6 +351,49 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
 
 def _age_in_months(start: date, today: date) -> int:
     return (today.year - start.year) * 12 + (today.month - start.month)
+
+
+class StarvedModel(RuntimeError):
+    """The liquidity model is not actually informing decisions."""
+
+
+def _assert_calendar_is_live(calendars, hist, use_calendar: bool, arm: str) -> None:
+    """Fail loudly if the timing arm is timing nothing.
+
+    Two independent checks, because either alone can be passed by a broken
+    model. Cold-start catches a starved fit; flatness catches the failure that
+    actually happened here -- a curve that is warm and populated but identical
+    on every day of the month, which no cold-start check would ever notice.
+
+    This exists because the harness ran for an entire evaluation serving a flat
+    0.72 to every payer, reported "cold-start = 100%", and that alarm was read
+    as cosmetic. A number nobody can distinguish from a working system is worse
+    than an exception.
+    """
+    if not use_calendar:
+        return
+
+    share = calendars.cold_start_share()
+    if share > 0.20:
+        raise StarvedModel(
+            f"{arm}: cold-start share {share:.1%} exceeds 20% after warm-up. "
+            "The cash calendar has too little history to inform decisions, so "
+            "the timing arm would measure nothing. Raise --warmup.")
+
+    # A payer with real history must be served a curve that varies by day.
+    spreads = []
+    for pid, outs in hist.items():
+        if len(outs) < 8:
+            continue
+        c = calendars.curve(pid, datetime(2026, 1, 15))
+        spreads.append(float(c.p_by_day.max() - c.p_by_day.min()))
+        if len(spreads) >= 40:
+            break
+    if spreads and max(spreads) < 1e-6:
+        raise StarvedModel(
+            f"{arm}: every served liquidity curve is flat. The allocator is "
+            "receiving a constant prior, so the timing arm is inert even though "
+            "the calendar fitted successfully.")
 
 
 def _run_a0_day(w, todays, queue, due_on, rules, fire, m) -> None:

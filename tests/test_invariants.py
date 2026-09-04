@@ -385,3 +385,112 @@ def test_observable_surfaces_exclude_hidden_fields():
     # Mandate state and its failure run are derived by the policy, never given.
     assert "state" not in m.observable()
     assert "consecutive_failures" not in m.observable()
+
+
+# ---------------------------------------------------------------------------
+# The calendar must actually reach the allocator
+#
+# These exist because the harness ran an entire evaluation serving a flat 0.72
+# to every payer. The cash calendar fitted fine; it simply was never consulted,
+# because the serve-time lookup keyed on the current month -- which is never in
+# the history the object was built from. The reported "cold-start = 100%" was an
+# accurate alarm that got read as cosmetic.
+#
+# A capability that is wired up wrong produces a number, not a crash, and a
+# number is indistinguishable from a working system. Hence: tests.
+# ---------------------------------------------------------------------------
+
+
+def _history(w, months_of_warmup, rules):
+    from datetime import datetime, time
+    while ((w.today.year - w.start.year) * 12
+           + (w.today.month - w.start.month)) < months_of_warmup:
+        for md in w.due_today():
+            w.attempt(md.mandate_id, datetime.combine(w.today, time(9, 30)),
+                      blocked_windows=list(rules.rails["UPI_AUTOPAY"].blocked_windows),
+                      fee_schedule=rules.fee_schedule_for_world(),
+                      fee_rails=rules.fee_rails())
+        w.step()
+    bank = {pid: p.observable()["bank"] for pid, p in w.payers.items()}
+    return {pid: w.history(pid) for pid in w.payers}, bank
+
+
+def test_served_curve_is_not_flat_for_a_payer_with_history(rules):
+    """THE regression test. A flat curve is inert but looks like a result."""
+    from prahar.propensity import WalkForwardCalendars
+    w = build(seed=7, n_payers=60, months=8)
+    hist, bank = _history(w, 4, rules)
+    wf = WalkForwardCalendars(hist, bank)
+
+    # A decision timestamp in the CURRENT month -- the case that used to miss.
+    spreads = []
+    for pid, outs in hist.items():
+        if len(outs) < 8:
+            continue
+        c = wf.curve(pid, datetime(w.today.year, w.today.month, 15))
+        spreads.append(float(c.p_by_day.max() - c.p_by_day.min()))
+    assert spreads, "no payer had enough history to judge"
+    assert max(spreads) > 0.01, (
+        "every served curve is flat: the allocator is receiving a constant "
+        "prior and the timing arm is inert")
+
+
+def test_serve_and_as_of_calendars_are_different_questions(rules):
+    """`curve` must be current; `curve_as_of` must not see beyond its month."""
+    from prahar.propensity import WalkForwardCalendars
+    w = build(seed=7, n_payers=60, months=8)
+    hist, bank = _history(w, 4, rules)
+    wf = WalkForwardCalendars(hist, bank)
+
+    first_month = wf.months[0]
+    # As-of the very first month, nothing earlier exists, so it must be cold.
+    early = wf.curve_as_of(next(iter(hist)), datetime(first_month[0], first_month[1], 15))
+    assert early.observations == 0
+
+    # Served now, a well-observed payer must not be cold.
+    warm = [pid for pid, o in hist.items() if len(o) >= 10]
+    assert warm, "no payer accumulated enough history"
+    served = wf.curve(warm[0], datetime(w.today.year, w.today.month, 15))
+    assert served.observations > 0
+    assert wf.cold_start_share() < 0.20
+
+
+def test_a1_and_a2_differ_only_by_liquidity(rules):
+    """Wiring, not flags.
+
+    The config-flag test passed while A1 had no learned model at all and A1->A2
+    silently added both the calendar AND LightGBM. Comparing booleans proves
+    nothing about what was actually built.
+    """
+    from prahar.propensity import FEATURES, LIQUIDITY_FEATURES, PropensityModel
+
+    a1 = PropensityModel(seed=7, use_liquidity=False)
+    a2 = PropensityModel(seed=7, use_liquidity=True)
+    # Same class, same seed, same everything except the masked features.
+    assert type(a1) is type(a2)
+    assert a1.seed == a2.seed
+    assert a1.use_liquidity is False and a2.use_liquidity is True
+    # Every masked feature must be a real feature, or the mask is a no-op.
+    assert set(LIQUIDITY_FEATURES) < set(FEATURES)
+
+
+def test_masking_actually_removes_the_liquidity_signal():
+    """A1's model must be unable to split on liquidity, not merely discouraged."""
+    import numpy as np
+    from prahar.propensity import LIQUIDITY_IDX, PropensityModel
+
+    X = np.arange(34, dtype=float).reshape(2, 17)
+    masked = PropensityModel(seed=7, use_liquidity=False)._mask(X)
+    kept = PropensityModel(seed=7, use_liquidity=True)._mask(X)
+
+    assert np.all(masked[:, list(LIQUIDITY_IDX)] == 0.0)
+    other = [i for i in range(17) if i not in LIQUIDITY_IDX]
+    np.testing.assert_allclose(masked[:, other], X[:, other])
+    np.testing.assert_allclose(kept, X)          # unmasked path untouched
+
+
+def test_starved_calendar_raises_rather_than_reporting_a_number(rules):
+    """One warm-up month is not enough, and that must be an exception."""
+    from eval.harness import StarvedModel, run_arm
+    with pytest.raises(StarvedModel):
+        run_arm("A2", seed=7, n_payers=50, months=4, warmup_months=1)

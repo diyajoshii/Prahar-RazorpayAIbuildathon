@@ -63,6 +63,25 @@ _RAILS = ("UPI_AUTOPAY", "NACH", "CARD_EMANDATE")
 _CLASSES = ("CREDIT", "INSURANCE", "INVESTMENT", "UTILITY", "SUBSCRIPTION")
 CATEGORICAL = ("rail_code", "obligation_code", "bank_code")
 
+# Everything the cash calendar contributes. Masking exactly these is what makes
+# the A1 -> A2 rung a single change.
+#
+# WHY THIS EXISTS
+# ---------------
+# The propensity model used to be gated on the same flag as the calendar, so A1
+# had no learned model at all and A1 -> A2 added two capabilities at once: the
+# liquidity signal *and* LightGBM. The A2 - A1 delta therefore could not isolate
+# payday awareness, which is the one thing the whole project claims. The
+# config-flag test passed the entire time, because it compared booleans rather
+# than the wiring behind them.
+#
+# Now both arms get the same model; A1's copy simply cannot see liquidity.
+LIQUIDITY_FEATURES: tuple[str, ...] = (
+    "liquidity_p", "liquidity_confidence", "cold_start",
+    "days_since_inferred_salary",
+)
+LIQUIDITY_IDX: tuple[int, ...] = tuple(FEATURES.index(f) for f in LIQUIDITY_FEATURES)
+
 
 # ---------------------------------------------------------------------------
 # Feature construction
@@ -155,17 +174,68 @@ class WalkForwardCalendars:
                     for pid, outs in histories.items()}
             self._by_month[ym] = CashCalendar().fit(past, bank_of_payer)
         self.months = months
+        self._empty = CashCalendar().fit({}, bank_of_payer)
+        # The calendar that actually serves decisions: fitted on everything
+        # available now. Rebuilt by the harness at each month boundary, so it
+        # stays current without ever seeing beyond the present.
+        self._serve = CashCalendar().fit(histories, bank_of_payer)
 
     def curve(self, payer_id: str, when):
+        """The curve to USE for a decision at `when`.
+
+        THE BUG THIS REPLACES -- WORTH KNOWING ABOUT
+        --------------------------------------------
+        This used to look up `_by_month[(when.year, when.month)]` and, on a
+        miss, fall back to `CashCalendar().fit({})` -- an empty calendar that
+        returns a flat 0.72 for every payer on every day.
+
+        At decision time `when` is always in the *current* month, which by
+        construction is never in the history the object was built from. So the
+        lookup missed every single time and the allocator was served a flat
+        prior for the entire evaluation. The timing arm was measuring nothing,
+        and the reported "cold-start share = 100%" was not a cosmetic glitch --
+        it was an accurate alarm that got silenced instead of read.
+
+        It was also train/serve skew, which is worse than starvation: training
+        rows were built from real per-month curves (those months *are* keyed),
+        so the model learned to lean on `liquidity_p` and was then handed 0.72
+        forever.
+
+        `_serve` is fitted on everything available at construction. Resolving
+        to "the newest key at or before `when`" would have been wrong too --
+        `_by_month[M-1]` holds data only through M-2, quietly discarding a
+        month of history.
+        """
+        return self._serve.curve(payer_id, self.bank_of_payer.get(payer_id, "_"))
+
+    def curve_as_of(self, payer_id: str, when):
+        """The curve that was KNOWABLE at `when` -- for building training rows.
+
+        Kept strictly separate from `curve()`. This one must stay as-of, or the
+        walk-forward guarantee collapses and the future leaks back into the
+        features; `curve()` must stay current, or the policy is served a flat
+        prior. Two different questions, two different methods.
+        """
         ym = (when.year, when.month)
         cal = self._by_month.get(ym)
-        if cal is None:                     # before any history exists
-            cal = CashCalendar().fit({}, self.bank_of_payer)
+        if cal is None:
+            earlier = [k for k in self._by_month if k <= ym]
+            cal = self._by_month[max(earlier)] if earlier else self._empty
         return cal.curve(payer_id, self.bank_of_payer.get(payer_id, "_"))
 
+    def cold_start_share(self) -> float:
+        """Cold-start share of the calendar actually serving decisions."""
+        return self._serve.cold_start_share()
+
     def cold_start_share_at(self, ym: tuple[int, int]) -> float:
+        """Retained for the as-of view; reporting should prefer the served one."""
         cal = self._by_month.get(ym)
-        return cal.cold_start_share() if cal else 1.0
+        if cal is None:
+            earlier = [k for k in self._by_month if k <= ym]
+            if not earlier:
+                return 1.0
+            cal = self._by_month[max(earlier)]
+        return cal.cold_start_share()
 
 
 def contexts_from_history(
@@ -204,7 +274,11 @@ def contexts_from_history(
             run = run_by_mandate.get(o.mandate_id, 0)
             age = cycles_seen.get(o.mandate_id, 0)
             if walk_forward:
-                curve = calendar.curve(payer_id, o.when)
+                # `curve_as_of`, never `curve`: a training row may only see
+                # what was knowable when the attempt happened. Using the served
+                # (current) calendar here would reintroduce exactly the leak
+                # that cost 4 AUC points to find.
+                curve = calendar.curve_as_of(payer_id, o.when)
 
             if meta is not None and o.cause in IN_SCOPE:
                 rows.append(Context(
@@ -348,13 +422,25 @@ class PropensityReport:
 class PropensityModel:
     """LightGBM binary classifier over observable context, Platt-calibrated."""
 
-    def __init__(self, seed: int = 7):
+    def __init__(self, seed: int = 7, use_liquidity: bool = True):
         self.seed = seed
+        # When False, every cash-calendar feature is blanked before training and
+        # before every prediction, so the model is identical in every other
+        # respect and cannot split on liquidity. This is what lets A1 and A2
+        # differ by exactly one capability.
+        self.use_liquidity = use_liquidity
         self.booster = None
         self.bank_index: dict[str, int] = {}
         self.platt: tuple[float, float] = (1.0, 0.0)
         self.report: PropensityReport | None = None
         self._fallback = False
+
+    def _mask(self, X: np.ndarray) -> np.ndarray:
+        if self.use_liquidity:
+            return X
+        X = X.copy()
+        X[:, list(LIQUIDITY_IDX)] = 0.0
+        return X
 
     # -- fitting ------------------------------------------------------------
 
@@ -363,7 +449,7 @@ class PropensityModel:
         y = np.asarray(labels, dtype=float)
         payers = sorted(set(groups))
         self.bank_index = {b: i for i, b in enumerate(sorted({c.bank for c in rows}))}
-        X = np.asarray([c.vector(self.bank_index) for c in rows], dtype=float)
+        X = self._mask(np.asarray([c.vector(self.bank_index) for c in rows], dtype=float))
 
         rng = np.random.default_rng(self.seed)
         held = set(rng.choice(payers, size=max(1, int(len(payers) * test_payer_fraction)),
@@ -378,8 +464,10 @@ class PropensityModel:
         if raw_te is None:
             self._fallback = True
             # Fall back to the calendar's own probability, which is at least
-            # monotone in the truth. Reported, never silent.
-            raw_te = X[is_test][:, FEATURES.index("liquidity_p")]
+            # monotone in the truth. Reported, never silent. Without liquidity,
+            # the payer's own running rate is the only honest stand-in.
+            col = ("liquidity_p" if self.use_liquidity else "payer_success_rate")
+            raw_te = X[is_test][:, FEATURES.index(col)]
 
         # Platt on the held-out fold, so calibration is not fitted on train.
         self.platt = _platt(raw_te, yte) if len(yte) > 50 else (1.0, 0.0)
@@ -432,9 +520,9 @@ class PropensityModel:
     def predict_one(self, ctx: Context) -> float:
         """Calibrated P(success). This is the number the objective multiplies."""
         if self.booster is None:
-            raw = float(ctx.liquidity_p)
+            raw = float(ctx.liquidity_p if self.use_liquidity else ctx.payer_success_rate)
         else:
-            v = np.asarray([ctx.vector(self.bank_index)], dtype=float)
+            v = self._mask(np.asarray([ctx.vector(self.bank_index)], dtype=float))
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 raw = float(self.booster.predict(v)[0])
