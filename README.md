@@ -92,6 +92,14 @@ Each of these made the numbers look better, which is what made them dangerous.
 
 3. **A cancellation hazard that counted the same death repeatedly.** A revoked mandate returns the same dead cause on every subsequent attempt, and 74% of dead-cause observations turned out to be repeats on an already-dead mandate. The estimator read a marginal hazard of 0.30 at two consecutive failures against a true 0.12, so the allocator priced a 15-cycle mandate as nearly certain to die and refused attempts that were worth making. Death is now absorbing, as in any hazard model, and the estimator recovers the generator's true hazard from observables alone.
 
+4. **The cash calendar never reached the allocator.** `WalkForwardCalendars._by_month` is keyed only on months present in the history it was built from — and at decision time the timestamp is always in the *current* month, which by construction is never in that history. Every lookup missed, fell through to an empty calendar, and served a flat 0.72 to every payer for an entire evaluation. It was also train/serve skew, which is worse than starvation: training rows were built from real per-month curves, so the model learned to lean on `liquidity_p` and was then handed a constant forever.
+
+   The harness had been reporting `cold-start share = 100%` the whole time. That was an accurate alarm, and it was "fixed" by patching the reporting path — which removed the only evidence anything was wrong. See `CLAUDE.md` §3.9.
+
+5. **The ablation ladder's rungs were not one change each.** `PropensityModel` was gated on the same flag as the calendar, so A1 had no learned model at all and A1→A2 added the cash calendar *and* LightGBM together. The A2−A1 delta — the one quantity the project's central claim rests on — was measuring two things at once. `test_ablation_flags_are_one_change_per_rung` passed throughout, because it compared four config booleans rather than the wiring behind them.
+
+   Same shape as bug 4: a check that was green and checking the wrong thing, producing a number rather than a crash. A number is indistinguishable from a working system.
+
 The generator was frozen in its own commit *before* any policy code existed, so none of these could be "fixed" by adjusting the world. `eval/run.py` prints the generator's SHA-256 with every result; if it does not match the freeze commit, the numbers were produced against a different world.
 
 ## Honest limitations
@@ -101,11 +109,13 @@ These belong on camera, not in a footnote.
 1. **The data is synthetic**, calibrated to published Indian figures (68–74% blended D2C success; month-end degradation; >20M monthly mandate revocations). The generator is published so the result is reproducible and contestable, but it is not production data.
 2. **Behavioural evidence is transplanted** from charity fundraising, retail email and Ugandan microfinance. The *shape* transfers; the coefficient does not.
 3. **The world models no response to being notified.** `NOTIFY_PREDEBIT` costs zero attempts and zero rupees and is legally mandatory anyway, but this evaluation claims **no recovery lift from it**, because inventing a payer-response coefficient is exactly the fabrication limitation 2 warns against. Contacts are reported as a count only.
-4. **The commons layer needs real merchant agreements and consent design** before production. Cross-merchant coordination raises genuine questions about consent and inter-merchant fairness that a demo cannot settle.
-5. **No peer-reviewed benchmark exists** for involuntary-churn recovery, so the comparison is to industry-standard fixed schedules, not to a published state of the art.
-6. **Cold-start payers fall back to priors**, and the fallback share is reported with every result rather than hidden.
-7. **The salary-day point estimate is weak** — about 1.7× better than chance. That is structural: a fixed-schedule policy only ever samples a payer's due days, so most day-bins hold no evidence. A policy's own action distribution bounds what it can learn. It is reported as a diagnostic and never fed into the objective.
-8. **Three values in `india_rails.yaml` are tagged `assumption`**, not documented: the NACH re-presentation count, card e-mandate attempt parity, and the auto-cancellation threshold. They are printed with every result so a modelling choice is never mistaken for a published figure.
+4. **The commons layer fired but did not move the needle.** It engaged on 87.6 payer-days per seed and deferred 98.6 mandates, so the mechanism ran at measurable volume — and its effect on every metric was within noise of the arm below it. It is reported that way rather than as "unvalidated", which would wrongly imply it was never exercised. Separately, it would need real merchant agreements and consent design before production; cross-merchant coordination raises questions about consent and inter-merchant fairness that a demo cannot settle.
+
+5. **The timing thesis did not materialise in this world.** A2−A1 isolates the cash calendar and is flat on every metric (₹ recovered +0.38%, attempts +0.35%, fees +5.89%; none significant, 5 seeds). Stated precisely: *payer-specific liquidity curves add nothing measurable over a population-level day-of-month prior here* — the propensity model already carries `day_of_month`, so that is what the ablation actually tested. This is **not** a falsification of payday-cycle effects generally: the generator gives every payer the same functional form of post-salary spending decay, differing only in salary day, which is a specific and possibly unrepresentative world. A synthetic negative does not overturn twenty years of empirical support, and overclaiming a negative is still overclaiming.
+6. **No peer-reviewed benchmark exists** for involuntary-churn recovery, so the comparison is to industry-standard fixed schedules, not to a published state of the art.
+7. **Cold-start payers fall back to priors**, and the fallback share is reported with every result rather than hidden.
+8. **The salary-day point estimate is weak** — about 1.7× better than chance. That is structural: a fixed-schedule policy only ever samples a payer's due days, so most day-bins hold no evidence. A policy's own action distribution bounds what it can learn. It is reported as a diagnostic and never fed into the objective.
+9. **Three values in `india_rails.yaml` are tagged `assumption`**, not documented: the NACH re-presentation count, card e-mandate attempt parity, and the auto-cancellation threshold. They are printed with every result so a modelling choice is never mistaken for a published figure.
 
 ## Run
 

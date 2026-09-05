@@ -88,6 +88,12 @@ class Metrics:
     propensity_auc: float = float("nan")
     unknown_causes: int = 0
     generator_sha256: str = ""
+    # Share of mandate-cycles that came due in the evaluation window and ended
+    # in a collection. This is what the continuation value must be worth under
+    # THIS policy -- the input to the fixed point.
+    realized_collection_rate: float = float("nan")
+    due_cycles: int = 0
+    collected_cycles: int = 0
 
     @property
     def recovered_per_attempt(self) -> float:
@@ -194,7 +200,8 @@ class RunResult:
 def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
             months: int = 6, n_payers: int = 400,
             keep_audit: bool = False, guard: bool = True,
-            parse_cause=None, **world_overrides) -> RunResult:
+            parse_cause=None, collection_rate_override: float | None = None,
+            **world_overrides) -> RunResult:
     """Run one arm through one world and return its metrics.
 
     `parse_cause` lets `trace.py` inject the LLM parser. The default is the
@@ -218,6 +225,8 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
                        generator_sha256=m.generator_sha256,
                        rules_version=rules.version)
 
+    _collected: set[tuple[str, int, int]] = set()
+
     def blocked_for(rail: str):
         return list(rules.rails[rail].blocked_windows) if rail in rules.rails else upi_blocked
 
@@ -230,6 +239,7 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
             if o.success:
                 m.successes += 1
                 m.recovered_inr += o.amount
+                _collected.add((mandate_id, when.year, when.month))
             if o.derived_blocked_window:
                 m.blocked_window_hits += 1
             parsed = parse_cause(o.raw_bank_message)
@@ -265,6 +275,10 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
             by_mandate[o.mandate_id].append(o)
 
     consequence = Consequence.build(dict(by_mandate), rules)
+    if collection_rate_override is not None:
+        # Fixed-point iteration: value the mandate at what THIS policy actually
+        # collects, not at what the naive warm-up policy collected.
+        consequence.collection_rate = float(collection_rate_override)
     cfg = AllocatorConfig.arm(arm) if arm != "A0" else AllocatorConfig(False, False, False, False)
 
     calendars = None
@@ -297,6 +311,8 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
     # queue[mandate_id] = date on which this mandate next wants a decision
     queue: dict[str, date] = {}
     due_on: dict[str, date] = {}
+    due_cycles: set[tuple[str, int, int]] = set()
+    collected_cycles: set[tuple[str, int, int]] = set()
     last_month = (w.today.year, w.today.month)
 
     while (w.today - w.start).days < w.horizon_days:
@@ -322,6 +338,7 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
             # retire the mandate after its first cycle.
             due_on[md.mandate_id] = w.today
             queue[md.mandate_id] = w.today
+            due_cycles.add((md.mandate_id, w.today.year, w.today.month))
 
         todays = [mid for mid, when in queue.items() if when <= w.today]
 
@@ -333,6 +350,12 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
         w.step()
 
     # -- final measurement --------------------------------------------------
+    collected_cycles |= _collected
+    if due_cycles:
+        m.due_cycles = len(due_cycles)
+        m.collected_cycles = len(collected_cycles & due_cycles)
+        m.realized_collection_rate = m.collected_cycles / m.due_cycles
+
     m.mandates_auto_cancelled = sum(
         1 for mid, md in w.mandates.items()
         if md.state is MandateState.AUTO_CANCELLED and mid not in cancelled_at_start)
@@ -347,6 +370,72 @@ def run_arm(arm: str, seed: int = 7, warmup_months: int = 2,
 
     return RunResult(metrics=m, audit=audit,
                      commons_log=commons.log if commons else [])
+
+
+@dataclass
+class FixedPointResult:
+    result: RunResult
+    trace: list[tuple[int, float | None, float]]   # (iteration, input, realized)
+    converged: bool
+
+    def render(self) -> str:
+        lines = ["  iter  value-input   realized   delta"]
+        for i, given, got in self.trace:
+            g = "warm-up est" if given is None else f"{given:11.4f}"
+            d = "" if given is None else f"{got - given:+8.4f}"
+            lines.append(f"  {i:>4}  {g:>11}  {got:9.4f}  {d}")
+        lines.append("  converged" if self.converged else
+                     "  DID NOT CONVERGE in 3 iterations -- reported as an "
+                     "oscillation, not smoothed away")
+        return "\n".join(lines)
+
+
+def run_arm_fixed_point(arm: str, seed: int = 7, iterations: int = 3,
+                        tol: float = 0.01, **kw) -> FixedPointResult:
+    """Value a mandate at what THIS policy will actually collect from it.
+
+    THE PROBLEM THIS SOLVES
+    -----------------------
+    `EV(EXECUTE)` charges `q x dP(cancel) x remaining_mandate_value` for the risk
+    of killing the mandate, while every non-executing action scores 0. In the
+    frozen world `cycles_remaining` decrements only on success, so a mandate
+    that is never attempted never elapses and keeps its full value forever. The
+    agent books that value as preserved, declines, and reasons identically next
+    cycle. It is a degenerate optimum, and it is a specification bug rather than
+    a coding one.
+
+    `collection_rate` was supposed to correct this but structurally cannot: it
+    is estimated from the warm-up history, which is the *naive* policy, so it
+    measures A0's collection rate and is blind to a distortion Prahar creates.
+
+    The self-consistent quantity is a fixed point -- the mandate is worth what
+    the policy will actually collect from it. If the policy never attempts, that
+    value is 0, there is nothing left to protect, and the degenerate optimum
+    dissolves on its own arithmetic. No new weight, so §3.3 survives.
+
+    BOUNDED ON PURPOSE
+    ------------------
+    Three iterations, then stop. If it has not settled, the oscillation is
+    reported rather than smoothed away -- an unstable fixed point is a finding
+    about the objective, not a number to keep grinding until it looks tidy.
+    """
+    trace: list[tuple[int, float | None, float]] = []
+    rate: float | None = None
+    result: RunResult | None = None
+    converged = False
+
+    for i in range(1, iterations + 1):
+        result = run_arm(arm, seed=seed, collection_rate_override=rate, **kw)
+        realized = result.metrics.realized_collection_rate
+        if realized != realized:                      # NaN: nothing came due
+            realized = 0.0
+        trace.append((i, rate, realized))
+        if rate is not None and abs(realized - rate) < tol:
+            converged = True
+            break
+        rate = realized
+
+    return FixedPointResult(result=result, trace=trace, converged=converged)
 
 
 def _age_in_months(start: date, today: date) -> int:
