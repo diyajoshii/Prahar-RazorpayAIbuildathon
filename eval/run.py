@@ -17,9 +17,9 @@ trusted. The values tagged ASSUMPTION in `india_rails.yaml` are printed too, so
 a modelling choice is never mistaken for a published figure.
 
 Usage:
-    python -m eval.run                          # default: 20 seeds
-    python -m eval.run --seeds 5 --payers 120   # quick pass
-    python -m eval.run --json results/main.json
+    python -m eval.run                                 # reproduces RESULTS.md
+    python -m eval.run --seeds 20                      # tighter intervals
+    python -m eval.run --json results/gate.json        # save, for the sweeps
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from .harness import (
     run_arm,
 )
 
-DEFAULT_SEEDS = 20
+DEFAULT_SEEDS = 5      # the published run; raise it for tighter intervals
 
 
 # ---------------------------------------------------------------------------
@@ -230,8 +230,13 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Run the Prahar ablation ladder.")
     ap.add_argument("--seeds", type=int, default=DEFAULT_SEEDS)
     ap.add_argument("--payers", type=int, default=120)
-    ap.add_argument("--months", type=int, default=6)
-    ap.add_argument("--warmup", type=int, default=2)
+    # Defaults are the configuration the published results were produced at.
+    # A shorter warm-up leaves the cash calendar too cold and `run_arm` raises
+    # StarvedModel rather than reporting a starved model's output -- so a
+    # default that does not clear that bar would ship a reproduction command
+    # that crashes.
+    ap.add_argument("--months", type=int, default=10)
+    ap.add_argument("--warmup", type=int, default=5)
     ap.add_argument("--salary-cycle-strength", type=float, default=None)
     ap.add_argument("--json", type=str, default=None)
     args = ap.parse_args()

@@ -121,7 +121,7 @@ Each rung of the ladder adds exactly one thing, so every gain has an owner. A te
 
 A0 is given the rail's attempt cap and a 09:30 slot outside the blocked windows **on purpose**. Scheduling A0 into 10:00–13:00 would have harvested a large fake improvement from blocked-window avoidance alone, and attributing that to intelligence would be dishonest.
 
-Six metrics, mean ± 95% CI over 20 seeds, with the generator's SHA-256 printed alongside: ₹ recovered · attempts spent · **₹ bounce fees inflicted on customers** (nobody else reports this) · mandates lost to auto-cancellation · contacts sent · ₹ recovered per attempt.
+Six metrics, mean ± 95% CI over 5 seeds (10 for the fee decomposition), with the generator's SHA-256 printed alongside: ₹ recovered · attempts spent · **₹ bounce fees inflicted on customers** (nobody else reports this) · mandates lost to auto-cancellation · contacts sent · ₹ recovered per attempt.
 
 See `RESULTS.md` for the measured numbers, including where Prahar does **not** beat the baseline.
 
@@ -205,17 +205,31 @@ cached to one execution but is genuinely expensive, and it will stretch to eight
 or more if something else is using the cores. A slow test that asserts something beats a
 fast one that asserts nothing — which is what two of these files were before.
 
+**Run the evaluation in this order** — the fixed point and the fee sweep both read
+`results/gate.json` and lock their world config to it, so that the ladder stays
+internally comparable. They refuse to start if it is missing or if the generator hash
+has changed.
+
+First the ladder. The defaults reproduce the numbers in `RESULTS.md` (5 seeds, 120
+payers, 10 months, 5 warm-up); a shorter warm-up leaves the cash calendar too cold and
+the harness raises `StarvedModel` rather than reporting a starved model's output.
+
 ```bash
-python -m eval.run --seeds 20 --payers 120
+python -m eval.run --json results/gate.json
+```
+
+Then the self-consistent continuation value for A3/A4, and the fee decomposition:
+
+```bash
+python -m eval.fixed_point
 ```
 
 ```bash
 python -m eval.fee_sweep --seeds 10
 ```
 
-```bash
-python -m eval.fixed_point
-```
+Then the decision trace. This one makes a single API call if a key is configured, and
+falls back to the deterministic rules table if not:
 
 ```bash
 python -m eval.trace

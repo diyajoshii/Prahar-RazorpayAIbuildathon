@@ -3,6 +3,12 @@
 Read this with `ARCHITECTURE.md`. That file holds the invariants you must not break.
 This one holds the problem you are solving and the components still to build.
 
+**This is the original brief, kept as written.** It is not updated to match what was
+actually built, because a plan edited after the fact stops being evidence of what was
+planned. Where the work departed from it — the sensitivity sweep was redirected from the
+salary rhythm to the fee schedule, and the seed count fell short of §18 — the deviation
+and its reason are recorded in `RESULTS.md` and `FREEZE.md`.
+
 ---
 
 # PART ONE — THE PROBLEM

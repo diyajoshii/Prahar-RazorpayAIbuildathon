@@ -41,7 +41,7 @@ when `use_cost_terms` is False.
 
 | | criterion | result |
 |---|---|---|
-| ☑ | All five arms, ≥5 seeds, six metrics, CIs reported | done |
+| ☒ | All five arms, **≥20 seeds**, six metrics, CIs reported | **PARTIAL — 5 seeds** |
 | ☒ | **Prahar beats A0 on ₹ recovered** | **FAIL — −8.1%** |
 | ☑ | Prahar beats A0 on attempts spent | −51.5% |
 | ☑ | Prahar beats A0 on fees inflicted | −39.7% |
@@ -53,6 +53,14 @@ when `use_cost_terms` is False.
 | ☑ | Generator SHA matches the freeze commit | yes |
 
 **Prahar does not beat the fixed schedule on gross recovery.** Reported as measured.
+
+**The seed count is also short of the bar.** SPEC §18 asks for ≥20 seeds; the ladder
+above is 5, and the fee decomposition is 10. Each five-arm seed is roughly five minutes
+of rollout at this world size, and the ladder, the fixed point and the sweep together
+already run to several hours. The intervals are therefore wider than they should be, and
+every marginal claim in this document is weaker for it. Restating the bar as "≥5 seeds"
+to make the row tick would have been the easier option and is exactly the move this
+evaluation exists to avoid.
 
 ---
 
