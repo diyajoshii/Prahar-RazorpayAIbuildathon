@@ -216,7 +216,8 @@ mandate that cannot be debited.
 | Baseline A0 | `baselines/a0_fixed.py` | done |
 | Arms A1-A4 | `AllocatorConfig.arm()` | done (one flag per rung) |
 | Eval harness | `eval/harness.py`, `eval/run.py` | done |
-| Sensitivity + break-even | `eval/sensitivity.py` | done |
+| Fixed-point continuation value | `eval/fixed_point.py` | done |
+| Fee-schedule decomposition | `eval/fee_sweep.py` | done |
 | Decision trace HTML | `eval/trace.py` | done |
 | Hidden-state tripwire | `eval/hidden_state_guard.py` | done |
 | Invariant tests | `tests/test_invariants.py` | done |

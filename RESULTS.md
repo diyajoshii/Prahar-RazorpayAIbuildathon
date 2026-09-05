@@ -160,6 +160,18 @@ This is the concrete argument for the architecture: the model classifies languag
 the deterministic EV objective decides money. A 0.98-confidence hallucination still has
 to clear the rupee arithmetic before it costs anyone anything.
 
+**Disclosure on the held-out set.** Converting the parser script to assertions surfaced a
+real defect: the rules table read "payer has switched off autopay for this merchant" — a
+revocation, structurally dead — as `TECHNICAL_DECLINE`, because the pattern matched the
+bare token `switch`. The fix narrowed `switch` to switch-as-infrastructure on general
+grounds, rather than adding a rule for that string, which would have been fitting the
+table to the held-out set. Held-out accuracy stayed at 0.0% because the string moved from
+*misclassified* to *UNKNOWN*, not to correct; all six technical-decline strings the world
+emits are still caught, as are phrasings like "payment switch down" that are not in the
+pool. **From that commit onward `UNSEEN` functions as a validation set rather than a
+strictly held-out one**, since a test now runs against it. The 0.0% is honest for the
+measurement as taken; a genuinely unseen set would have to be drawn fresh.
+
 ---
 
 ## What survives
@@ -184,3 +196,45 @@ from customers in penalties, 45% fewer mandates destroyed, at 8% less collected.
 
 Whether that trade is worth making is a business decision, and this evaluation is meant
 to let someone make it with the numbers in front of them rather than take it on faith.
+
+---
+
+## What I would do next
+
+The −8.1% recovery gap has a structural cause, and it is worth naming precisely
+rather than attributing to time.
+
+**The allocator is one-step.** It chooses a single action per decision by taking the
+argmax of a myopic expected value. But four attempts is a **sequential budget**, and a
+greedy one-step maximiser systematically under-attempts against one, for a specific
+reason: it charges the *full* cancellation downside to whichever attempt it is currently
+considering, while ignoring that a failure still leaves it with remaining budget, a
+remaining deadline, and further cycles in which to recover. The downside is priced once
+per attempt; the option value of the attempts that follow is never priced at all.
+
+That asymmetry shows up everywhere in the results. A1 already gives up 5.2% of recovery
+before any cost term exists, purely from replacing a fixed calendar with a myopic argmax.
+The fixed point corrected the *level* of the continuation value — from 0.80 to 0.64, a
+real 20% over-pricing — and moved recovery by ~1pp, which is exactly what you would
+expect if the level was slightly wrong but the **shape** of the reasoning was the real
+problem.
+
+**The right next step is a finite-horizon dynamic program over the four-attempt budget**,
+not a better one-step objective. State: attempts remaining, days to deadline, consecutive
+failures, inferred liquidity. Solve backwards from the deadline. The budget is capped at
+four and the horizon at ~30 days, so the state space is small enough to solve exactly —
+this is a tractable DP, not a reinforcement-learning problem, and it stays as auditable
+as the current argmax because every value in the table can be printed and defended.
+
+Two smaller things, in order of value:
+
+1. **Give A0 its own routed variant.** The A0→A1 rung bundles cause routing, the EV
+   objective and the expanded action set, so only the dead-cause figure (1,294 → 32)
+   isolates routing. One extra arm would resolve the attribution properly.
+2. **More seeds on the fee decomposition.** The negative claim about the fee term rests
+   on the power of the sweep, and a negative result deserves at least as much sample as
+   a positive one.
+
+What I would **not** do is keep adjusting the objective. Four claims in this project
+died on measurement, and each one died faster than the last because the instrumentation
+got better rather than because the ideas got worse. The next honest gain is structural.

@@ -8,6 +8,47 @@ Razorpay AI Buildathon — Track 03, AI Revenue Recovery.
 
 ---
 
+## The result, first
+
+I set out to show that India's customer-billed retry budget demands a different
+objective than the rest of the world uses. I built it, measured it, and **four of my
+own claims did not survive the measurement.**
+
+**The headline metric is a FAIL.** Against a fixed T+1/T+3/T+5 schedule, over 5 seeds
+with 95% confidence intervals:
+
+| | vs the fixed schedule |
+|---|---|
+| ₹ recovered | **−8.1%** ← the track asks for measured money recovered. This is worse. |
+| attempts spent | −51.5% |
+| ₹ bounce fees inflicted on customers | −39.7% |
+| mandates destroyed by auto-cancellation | −45.5% |
+| ₹ recovered per attempt | +88.8% |
+| dead-cause attempts (spent on undebitable mandates) | **1,294 → 32** |
+
+**What did not survive:**
+
+1. **Payday-rhythm learning.** Isolating the cash calendar (A2−A1) gives +0.38% recovery, not significant. Payer-specific liquidity curves add nothing over a population-level day-of-month prior *in this world*.
+2. **The fee term.** Zeroing or doubling the bounce-fee schedule does not detectably change behaviour. The advantage comes from pricing *cancellation*, not from pricing the fee — which was the project's central premise.
+3. **The commons layer.** Fired at measurable volume (87.6 payer-days/seed) and moved nothing beyond noise.
+4. **The fixed-point correction.** Converged cleanly on 10/10 seeds and bought ~1pp. The shortfall is structural.
+
+**Six bugs were found by measuring, and every single one was making the results look
+better** — feature leakage worth 4 AUC points, a stale due date that manufactured a fake
+4.6× win, a hazard estimator counting the same death repeatedly, an unbounded deferral
+horizon, a liquidity model that served a flat prior for an entire evaluation, and an
+ablation ladder whose rungs were not one change each. Details in *What was hard* below.
+
+**So the defensible claim is narrower than the one I started with:** *this spends a
+capped, customer-billed attempt budget rationally — half the attempts, 40% less taken
+from customers in penalties, 45% fewer mandates destroyed, at 8% less collected.*
+Whether that trade is worth making is a business decision. The point of the evaluation is
+to let someone make it with the numbers in front of them.
+
+Full numbers, the §18 checklist, and what I would do next: **[`RESULTS.md`](RESULTS.md)**.
+
+---
+
 ## The problem in one paragraph
 
 Every retry engine optimises `P(this attempt succeeds)`. In India that is the wrong objective. NPCI grants **four attempts, ever**, and blocks two of the day's busiest windows. On NACH rails every failure charges the *payer* ₹250–₹750 plus GST, on escalating tiers — so a fixed T+1/T+3/T+5 calendar is structurally fee-maximising against someone who is already short of money. And a large share of failures are structurally un-retryable: a revoked mandate fails identically at 2am, at noon, or three days later.
@@ -102,6 +143,29 @@ Each of these made the numbers look better, which is what made them dangerous.
 
 The generator was frozen in its own commit *before* any policy code existed, so none of these could be "fixed" by adjusting the world. `eval/run.py` prints the generator's SHA-256 with every result; if it does not match the freeze commit, the numbers were produced against a different world.
 
+### A methodological disclosure about the held-out set
+
+While converting the parser script to real assertions, one test failed: the rules table
+classified **"payer has switched off autopay for this merchant"** — a revocation, and
+structurally dead — as `TECHNICAL_DECLINE`, because the pattern matched the bare token
+`switch`. That is the expensive error, since it spends capped, fee-bearing attempts on a
+mandate that cannot be debited at any hour.
+
+The fix was made **on general grounds rather than by pattern-matching the string**:
+`switch` was anchored to switch-as-infrastructure (`payment switch`, `switch inoperative`,
+and similar) instead of adding a rule for "switched off autopay", which would have been
+fitting the rules table to the held-out set. Held-out accuracy stayed at **0.0%** because
+the string moved from *misclassified* to *UNKNOWN*, not to correct — so the 0.0% → 88.9%
+baseline that the entire case for the LLM stage rests on is intact. Verified separately:
+all six technical-decline strings the world emits are still caught, along with phrasings
+like "payment switch down" and "NPCI switch timeout" that are not in the pool.
+
+**But `UNSEEN` is a validation set from that commit onward, not a strictly held-out one.**
+A test now runs against it, so any future rules change is checked against those strings.
+That distinction is real and worth stating plainly rather than leaving for a reader to
+find: the reported 0.0% is honest for the measurement as taken, and a genuinely unseen
+set would have to be drawn fresh.
+
 ## Honest limitations
 
 These belong on camera, not in a footnote.
@@ -132,7 +196,11 @@ python -m eval.run --seeds 20 --payers 120
 ```
 
 ```bash
-python -m eval.sensitivity --sweep all
+python -m eval.fee_sweep --seeds 10
+```
+
+```bash
+python -m eval.fixed_point
 ```
 
 ```bash

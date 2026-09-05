@@ -60,8 +60,8 @@ def _caller_is_policy() -> str | None:
                 continue
             return f"{path.name}:{frame.f_lineno} in {frame.f_code.co_name}()"
         # Once we reach the generator or the harness, the read is legitimate.
-        if path.name in ("generator.py", "harness.py", "run.py", "sensitivity.py",
-                         "trace.py", "hidden_state_guard.py"):
+        if path.name in ("generator.py", "harness.py", "run.py", "trace.py",
+                         "fee_sweep.py", "fixed_point.py", "hidden_state_guard.py"):
             return None
         depth += 1
     return None

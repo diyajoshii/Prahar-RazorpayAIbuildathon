@@ -133,9 +133,24 @@ _PATTERNS: list[tuple[Cause, re.Pattern]] = [
     (Cause.INSUFFICIENT_FUNDS, re.compile(
         r"insuff|not sufficient|funds insufficient|balance (is )?(low|insufficient)|"
         r"bal low|available balance less", re.I)),
+    # `switch` must not match on its own. A bare token match reads "payer has
+    # switched off autopay for this merchant" -- a revocation, structurally DEAD
+    # -- as a payment-switch failure, which is RETRYABLE_TECHNICAL. That is the
+    # single most expensive misclassification this module can make: it spends
+    # capped, fee-bearing attempts on a mandate that cannot be debited at any
+    # hour. Anchoring it to switch-as-infrastructure keeps the real cases
+    # ("Issuer or switch inoperative") and lets the revocation fall through to
+    # UNKNOWN, which routes to the zero-cost action.
+    #
+    # Deliberately NOT fixed by adding a pattern for "switched off autopay":
+    # that would be fitting the rules table to the held-out set, which is the
+    # very thing `test_rules_alone_cannot_generalise` exists to prevent. This
+    # narrows a pattern that was too loose on its own merits; it does not widen
+    # coverage, and held-out accuracy stays at 0.0%.
     (Cause.TECHNICAL_DECLINE, re.compile(
         r"timeout|unavailab|inoperative|system error|do not honor|do not honour|"
-        r"try later|switch|bank end", re.I)),
+        r"try later|(?:issuer or |payment |npci )switch|switch (?:inoperative|"
+        r"down|error|failure|timeout|unavailable)|bank end", re.I)),
     (Cause.SUCCESS, re.compile(r"^\s*(success|00\b|approved)|txn successful", re.I)),
 ]
 

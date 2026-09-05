@@ -88,7 +88,15 @@ def main() -> None:
 
     gate = json.loads(Path(args.gate).read_text(encoding="utf-8"))
     payers, months, warmup = gate["payers"], gate["months"], gate["warmup"]
-    seeds = list(gate["seeds"])[:args.seeds]
+    # The sweep may need MORE seeds than the gate run used. A negative claim
+    # about the fee term ("doubling the schedule does not change behaviour") is
+    # a statement about statistical power, so it must not inherit the gate's
+    # sample size. Extend consecutively from the gate's seeds rather than
+    # picking new ones, so the overlap is directly comparable.
+    seeds = list(gate["seeds"])
+    while len(seeds) < args.seeds:
+        seeds.append(seeds[-1] + 1)
+    seeds = seeds[:args.seeds]
 
     # Continuation value from the converged fixed point, held fixed throughout.
     rate = None

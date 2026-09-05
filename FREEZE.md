@@ -49,6 +49,19 @@ documented Indian phenomena:
 `tests/test_world_calibration.py` reproduces this table.
 
 The magnitude of the month-end effect is set by `WorldConfig.salary_cycle_strength`.
-`eval/sensitivity.py` sweeps it from 1.0 down to 0.0 and reports the value at
-which Prahar's advantage over the fixed-schedule baseline disappears. That
-break-even is published, not hidden.
+
+**That sweep was planned and then dropped, on evidence.** `eval/sensitivity.py` was
+to sweep `salary_cycle_strength` from 1.0 to 0.0 and publish the point where the
+timing advantage disappears. The A2-minus-A1 gate showed the cash calendar adds
+nothing measurable in this world (see `RESULTS.md`), so sweeping the strength of a
+channel that carries no signal would have measured nothing. The module was deleted
+rather than left in place stating a prediction the evaluation had already answered.
+
+It was replaced by `eval/fee_sweep.py`, which sweeps the bounce-fee schedule
+instead and decomposes A3 minus A2 into the cancellation term (the intercept at
+0x) and the fee term (the slope). That probes the claim that actually survived.
+
+Note that `data/generator.py` still refers to `eval/sensitivity.py` in two
+comments. The generator is frozen, and editing it to tidy a comment would break
+the hash that makes every result provable. The dangling reference is left in
+place and explained here instead -- that trade is the whole point of the freeze.
