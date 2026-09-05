@@ -33,11 +33,13 @@ with 95% confidence intervals:
 3. **The commons layer.** Fired at measurable volume (87.6 payer-days/seed) and moved nothing beyond noise.
 4. **The fixed-point correction.** Converged cleanly on 10/10 seeds and bought ~1pp. The shortfall is structural.
 
-**Six bugs were found by measuring, and every single one was making the results look
+**Seven bugs were found by measuring, and every single one was making the results look
 better** — feature leakage worth 4 AUC points, a stale due date that manufactured a fake
 4.6× win, a hazard estimator counting the same death repeatedly, an unbounded deferral
 horizon, a liquidity model that served a flat prior for an entire evaluation, and an
-ablation ladder whose rungs were not one change each. Details in *What was hard* below.
+ablation ladder whose rungs were not one change each, and a regex that read a revoked
+mandate as retryable — that last one caught by a test written in the final hour. Details
+in *What was hard* below.
 
 **So the defensible claim is narrower than the one I started with:** *this spends a
 capped, customer-billed attempt budget rationally — half the attempts, 40% less taken
@@ -141,6 +143,10 @@ Each of these made the numbers look better, which is what made them dangerous.
 
    Same shape as bug 4: a check that was green and checking the wrong thing, producing a number rather than a crash. A number is indistinguishable from a working system.
 
+6. **A regex that read a revoked mandate as retryable.** Found by an assertion added in the last hour of the build. The `TECHNICAL_DECLINE` pattern matched the bare token `switch`, so "payer has switched off autopay for this merchant" — a revocation, structurally dead — classified as retryable, which would spend capped, fee-bearing attempts on a mandate that can never be debited. See the disclosure below for why the fix was made on general grounds rather than by pattern-matching the string.
+
+7. **An unbounded deferral horizon.** SUBSCRIPTION carries a 30-day deadline and a zero late fee, so the allocator could legally place a deferral past the mandate's own next due date — at which point it is not a deferral, it is a forfeited cycle the objective sees no cost for. This one is included for completeness rather than impact: it was measured at **2.9% of deferrals** *before* anything was changed, which disproved the hypothesis that it explained the recovery shortfall. Fixed anyway, because the semantics were wrong.
+
 The generator was frozen in its own commit *before* any policy code existed, so none of these could be "fixed" by adjusting the world. `eval/run.py` prints the generator's SHA-256 with every result; if it does not match the freeze commit, the numbers were produced against a different world.
 
 ### A methodological disclosure about the held-out set
@@ -190,6 +196,13 @@ pip install -r requirements.txt
 ```bash
 python -m pytest tests/ -q
 ```
+
+**The suite takes about 8 minutes, and that is deliberate — it has not hung.** The
+calibration assertions roll a full 400-payer, 6-month world and check it against the
+documented figures in `FREEZE.md` (68–74% blended success, month-end degradation, cause
+mix, endogenous revocation, and the generator hash). That rollout is cached to one
+execution, but it is genuinely expensive. A slow test that asserts something beats a fast
+one that asserts nothing — which is what these two files were before.
 
 ```bash
 python -m eval.run --seeds 20 --payers 120
