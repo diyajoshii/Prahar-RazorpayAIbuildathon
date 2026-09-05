@@ -6,8 +6,14 @@ WHY THIS SWEEP AND NOT THE SALARY-RHYTHM ONE
 The original plan swept `WorldConfig.salary_cycle_strength` to publish a
 break-even for the timing thesis. The gate showed A2 minus A1 is flat, so that
 channel carries no signal in this world and sweeping its strength would measure
-nothing. This sweep replaces it, and it probes the claim that actually survived:
+nothing. This sweep replaces it, and it probes the project's central claim:
 **attempts in India are customer-billed, so the objective must price them.**
+
+That claim turned out to be only partially supported. Pricing the fee does
+change behaviour -- at 2x the published schedule it significantly reduces both
+fees inflicted and mandates destroyed -- but at India's actual fee levels
+nothing moves detectably, and the restraint comes from the cancellation term
+instead. See RESULTS.md section 4.
 
 THE DECOMPOSITION
 -----------------
@@ -42,8 +48,8 @@ the continuation value were re-solved at each fee scale, two things would vary
 at once and the slope would no longer isolate the fee term.
 
 Usage:
-    python -m eval.fee_sweep
-    python -m eval.fee_sweep --seeds 3 --scales 0 1 2
+    python -m eval.fee_sweep                        # reproduces RESULTS.md
+    python -m eval.fee_sweep --seeds 20 --scales 0 1 2
 """
 
 from __future__ import annotations
@@ -81,7 +87,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Bounce-fee sweep with term decomposition.")
     ap.add_argument("--gate", default="results/gate.json")
     ap.add_argument("--fixed-point", default="results/fixedpoint.json")
-    ap.add_argument("--seeds", type=int, default=3)
+    # Ten, not three. A negative claim about the fee term is a statement about
+    # statistical power, and the three-seed pass this default used to reproduce
+    # is explicitly superseded in RESULTS.md -- its points were non-monotonic
+    # and its intervals were narrower by luck.
+    ap.add_argument("--seeds", type=int, default=10)
     ap.add_argument("--scales", type=float, nargs="+", default=[0.0, 1.0, 2.0])
     ap.add_argument("--out", default="results/feesweep.json")
     args = ap.parse_args()
