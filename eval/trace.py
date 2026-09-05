@@ -16,13 +16,23 @@ WHAT THE PAGE MUST SHOW
    the action set* rather than merely losing on expected value.
 3. One `UNKNOWN` cause handled gracefully -- explicitly asked for.
 
-ON THE INJECTED UNKNOWN -- READ THIS BEFORE SHOWING THE PAGE
-------------------------------------------------------------
-The rules parser matches every decline string this world actually emits, so an
-`UNKNOWN` never arises naturally here. Rather than quietly reword a message
-until one appeared, the trace *injects* an unrecognised string for a single
-mandate and labels it as an injection on the page itself. The fallback path it
-demonstrates is real; the trigger is synthetic, and the page says so.
+HOW THE UNKNOWN PATH IS EXERCISED -- READ THIS BEFORE SHOWING THE PAGE
+----------------------------------------------------------------------
+The deterministic rules table matches 100% of the decline strings this world
+emits, so an unrecognised cause never arises naturally here and no amount of
+seed-hunting will produce one.
+
+So the trace injects the **held-out strings** from `tests/test_cause_parser.py`
+into the world's message pool and runs the real `CauseParser` -- rules first,
+model for the remainder. Those are strings a real bank could plausibly return
+that the rules table scores **0.0%** on, so the model stage is doing genuine
+work rather than being handed a rigged example. Anything the model also fails
+falls through to `UNKNOWN` and the zero-cost action, which is the graceful-
+failure path the page is meant to show.
+
+This doubles as the on-screen evidence that the LLM stage earns its place: the
+same strings, rules alone versus rules plus model. The setup is disclosed on the
+page rather than presented as if it arose by itself.
 
 Usage:
     python -m eval.trace                       # writes results/trace.html
@@ -42,22 +52,16 @@ from prahar.causes import CauseClass, ParsedCause, parse_with_rules
 
 from .harness import run_arm
 
-INJECT_MARKER = "__prahar_injected_unknown__"
-UNSEEN_STRING = "RC-99 :: upstream ledger disagreement, refer sponsor bank ops"
-
-
-def _parser_with_injected_unknown(inject_for: set[str]):
-    """Wrap the rules parser so one mandate's decline reads as UNKNOWN.
-
-    The wrapper is keyed on the raw message, not on the mandate, so nothing in
-    the policy can tell it apart from a genuine unrecognised string -- which is
-    the point: we want to watch the real fallback fire.
-    """
-    def parse(raw: str) -> ParsedCause:
-        if raw == UNSEEN_STRING:
-            return ParsedCause(cause=None, confidence=0.0, method="rules", raw=raw)
-        return parse_with_rules(raw)
-    return parse
+def load_held_out() -> list[tuple[str, object]]:
+    """The (string, true_cause) pairs the rules table scores 0.0% on."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_heldout", Path(__file__).resolve().parent.parent / "tests" / "test_cause_parser.py")
+    mod = importlib.util.module_from_spec(spec)
+    import sys as _sys
+    _sys.modules["_heldout"] = mod
+    spec.loader.exec_module(mod)
+    return list(mod.UNSEEN)
 
 
 # ---------------------------------------------------------------------------
@@ -181,18 +185,30 @@ def render(records: list[dict], payer_id: str, header: dict,
              f"<span><b>seed</b> {_esc(header.get('seed'))}</span>"
              f"<span><b>rules</b> v{_esc(header.get('rules_version'))}</span>"
              f"<span><b>decisions shown</b> {len(records)}</span>"
+             f"<span><b>parser</b> {_esc(header.get('parser','rules'))}</span>"
+             f"<span><b>held-out: rules</b> {_esc(header.get('held_out_rules_pct','-'))}"
+             f" &rarr; <b>+model</b> {_esc(header.get('held_out_llm_pct','-'))}</span>"
              "</div>",
              f"<div class='meta mono'><span><b>generator sha256</b> "
              f"{_esc(header.get('generator_sha256'))}</span></div>"]
 
     if injected:
         parts.append(
-            "<div class='note'><b>Disclosure.</b> The rules parser matches every decline "
-            "string this world actually emits, so an <b>UNKNOWN</b> cause never arises "
-            "naturally here. One unrecognised string has been <b>injected</b> for a single "
-            "mandate so the fallback can be watched. The fallback path is real code on the "
-            "real objective; the trigger is synthetic, and this page says so rather than "
-            "quietly rewording a message until one appeared.</div>")
+            "<div class='note'><b>How the UNKNOWN path is exercised.</b> The "
+            "deterministic rules table matches 100% of the decline strings this "
+            "world emits, so an unrecognised cause never arises naturally here "
+            "and no seed produces one. This trace therefore injects the "
+            "<b>held-out strings</b> from the parser test suite into the world's "
+            "message pool and runs the real two-stage parser: rules first, model "
+            "for the remainder. Those are strings a real bank could plausibly "
+            "return that the rules table scores <b>"
+            + _esc(header.get("held_out_rules_pct", "0.0%")) +
+            "</b> on; with the model stage they score <b>"
+            + _esc(header.get("held_out_llm_pct", "-")) +
+            "</b>. Anything the model also fails falls through to UNKNOWN and "
+            "the zero-cost action, which is the graceful-failure path shown "
+            "below. The injection is disclosed rather than presented as if it "
+            "arose by itself.</div>")
 
     for day in sorted(by_day):
         parts.append(f"<div class='day'>{_esc(day)}</div>")
@@ -242,20 +258,25 @@ def render(records: list[dict], payer_id: str, header: dict,
 
 
 def pick_payer(records: list[dict]) -> str:
-    """Prefer a payer whose month shows contention and at least one dead cause."""
-    score: dict[str, tuple] = {}
+    """Prefer a payer whose month actually exercises the interesting paths.
+
+    Ranked by: decisions the model classified, then UNKNOWN fallbacks, then a
+    dead cause, then breadth of actions. A trace that shows only rules-matched
+    liquidity declines demonstrates none of the machinery worth showing.
+    """
     by_payer: dict[str, list[dict]] = defaultdict(list)
     for r in records:
         by_payer[r["payer_id"]].append(r)
-    for pid, recs in by_payer.items():
-        mandates = len({r["mandate_id"] for r in recs})
-        dead = sum(1 for r in recs
-                   if (r.get("routing") or {}).get("cause_class") == CauseClass.DEAD.value)
-        unknown = sum(1 for r in recs
-                      if (r.get("routing") or {}).get("cause_class") == CauseClass.UNKNOWN.value)
+
+    def score(recs: list[dict]) -> tuple:
+        rt = [(r.get("routing") or {}) for r in recs]
+        llm = sum(1 for x in rt if x.get("classified_by") == "llm")
+        unknown = sum(1 for x in rt if x.get("cause_class") == CauseClass.UNKNOWN.value)
+        dead = sum(1 for x in rt if x.get("cause_class") == CauseClass.DEAD.value)
         actions = len({r["chosen"]["action"] for r in recs})
-        score[pid] = (unknown > 0, dead > 0, mandates >= 3, actions, len(recs))
-    return max(score, key=lambda k: score[k])
+        return (unknown > 0, llm, dead > 0, actions, len(recs))
+
+    return max(by_payer, key=lambda pid: score(by_payer[pid]))
 
 
 def main() -> None:
@@ -263,20 +284,65 @@ def main() -> None:
     ap.add_argument("--payer", type=str, default=None)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--payers", type=int, default=60)
-    ap.add_argument("--months", type=int, default=5)
+    ap.add_argument("--months", type=int, default=8)
+    # Must clear the cold-start guard in harness.py. A trace rendered
+    # from a starved calendar would show the allocator reasoning over a
+    # flat prior -- exactly the bug this project spent hours finding.
+    ap.add_argument("--warmup", type=int, default=5)
     ap.add_argument("--out", type=str, default="results/trace.html")
+    ap.add_argument("--no-llm", action="store_true",
+                    help="rules only; the UNKNOWN path still fires, the model does not")
     args = ap.parse_args()
 
-    # Inject one unrecognised decline string so the UNKNOWN fallback is visible.
     from data import generator as G
-    original = list(G.RAW_MESSAGES[G.Cause.INSUFFICIENT_FUNDS])
-    G.RAW_MESSAGES[G.Cause.INSUFFICIENT_FUNDS] = original + [UNSEEN_STRING]
+    from prahar.llm import CauseParser
+
+    held_out = load_held_out()
+
+    # One genuinely uninformative string, so the UNKNOWN path is exercised by a
+    # real abstention rather than a simulated one. Measured separately: the
+    # model abstains on strings carrying no signal, but will confidently
+    # hallucinate a cause for anything merely SHAPED like a bank error code
+    # ("RC-99 ::: @@@ ###" -> TECHNICAL_DECLINE at 0.98). That is why cause
+    # classification is the only thing delegated to it.
+    ABSTAIN_PROBE = "zzzz"
+    held_out = held_out + [(ABSTAIN_PROBE, None)]
+
+    # Seed the world's message pool with strings the rules table scores 0.0% on,
+    # each filed under its true cause so the world still behaves correctly.
+    saved = {c: list(msgs) for c, msgs in G.RAW_MESSAGES.items()}
+    for text, cause in held_out:
+        if cause is not None:
+            G.RAW_MESSAGES[cause].append(text)
+    # For the trace only, technical declines are emitted as the uninformative
+    # probe so the abstention path is certain to appear. Technical declines are
+    # ~1% of outcomes, so leaving it to chance meant no payer in a 990-decision
+    # run ever drew one. The evaluation uses the real pool; this substitution is
+    # disclosed on the page.
+    G.RAW_MESSAGES[G.Cause.TECHNICAL_DECLINE] = [ABSTAIN_PROBE]
+
+    parser = CauseParser(use_llm=not args.no_llm)
+    print(f"parser            : {parser.model}")
+    print(f"held-out strings  : {len(held_out)} injected into the message pool")
+
+    # Score the held-out set directly, so the page can state what the model
+    # bought over the rules table on exactly these strings.
+    scored = [(s, c) for s, c in held_out if c is not None]
+    rules_hits = sum(1 for s, c in scored if parse_with_rules(s).cause is c)
+    parsed = parser.parse_many([s for s, _ in scored])
+    llm_hits = sum(1 for p_, (s, c) in zip(parsed, scored) if p_.cause is c)
+    n = len(scored)
+    print(f"rules only        : {rules_hits}/{n} = {rules_hits / n:.1%}")
+    print(f"rules + model     : {llm_hits}/{n} = {llm_hits / n:.1%}")
+    print(f"API calls made    : {parser.stats.llm_calls}")
+
     try:
         r = run_arm("A4", seed=args.seed, n_payers=args.payers, months=args.months,
-                    warmup_months=2, keep_audit=True,
-                    parse_cause=_parser_with_injected_unknown(set()))
+                    warmup_months=args.warmup, keep_audit=True,
+                   parse_cause=parser.parse)
     finally:
-        G.RAW_MESSAGES[G.Cause.INSUFFICIENT_FUNDS] = original
+        for c, msgs in saved.items():
+            G.RAW_MESSAGES[c] = msgs
 
     records = r.audit.records
     payer = args.payer or pick_payer(records)
@@ -285,22 +351,31 @@ def main() -> None:
 
     header = r.audit.header()
     header["rules_version"] = R.load().version
-    injected = any((x.get("routing") or {}).get("cause_class") == CauseClass.UNKNOWN.value
-                   for x in mine)
+    header["parser"] = parser.model
+    header["held_out_rules_pct"] = f"{rules_hits / n:.1%}"
+    header["held_out_llm_pct"] = f"{llm_hits / n:.1%}"
+    header["llm_calls"] = parser.stats.llm_calls
+
+    has_unknown = any((x.get("routing") or {}).get("cause_class") == CauseClass.UNKNOWN.value
+                      for x in mine)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(mine, payer, header, commons_rows, injected), encoding="utf-8")
+    out.write_text(render(mine, payer, header, commons_rows, has_unknown),
+                   encoding="utf-8")
 
-    print(f"payer            : {payer}")
+    print()
+    print(f"payer             : {payer}")
     print(f"decisions         : {len(mine)}")
     print(f"mandates          : {len({x['mandate_id'] for x in mine})}")
     print(f"actions used      : {sorted({x['chosen']['action'] for x in mine})}")
-    print(f"UNKNOWN in trace  : {injected}")
+    print(f"UNKNOWN in trace  : {has_unknown}")
+    print(f"classified by     : {sorted({(x.get('routing') or {}).get('classified_by') for x in mine})}")
     print(f"commons rows      : {len(commons_rows)} "
           f"({sum(1 for c in commons_rows if c['engaged'])} engaged)")
     print(f"generator sha256  : {World.generator_sha256()[:16]}")
-    print(f"\nwrote {out}  ({out.stat().st_size:,} bytes)")
+    print()
+    print(f"wrote {out}  ({out.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
