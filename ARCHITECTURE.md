@@ -4,8 +4,7 @@ Context for anyone working in this repo. It records the decisions that are
 already settled and **why**, so they don't get quietly undone.
 
 Project: **Prahar** — Razorpay AI Buildathon, Track 03 (AI Revenue Recovery).
-Author: Diya Joshi. Submission needs a public repo, a 5-minute pitch video, and
-an answer to "Build Challenges & Technical Obstacles".
+Author: Diya Joshi.
 
 ---
 
