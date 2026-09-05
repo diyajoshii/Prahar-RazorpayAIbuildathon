@@ -1,0 +1,55 @@
+============================================================================================
+BOUNCE-FEE SWEEP -- decomposition of A3 minus A2
+============================================================================================
+  world    120 payers, 10 months, 5 warm-up
+  seeds    [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+  scales   [0.0, 1.0, 2.0]  (multiplier on the published fee schedule)
+  sha256   8184e39fbfeb920d
+  continuation value held fixed at collection rate 0.6566 (converged)
+
+  A3 - A2 isolates use_cost_terms, which gates BOTH the fee term and
+  the cancellation term. Across the fee scale:
+    intercept at s=0  ->  the cancellation term alone
+    slope d/ds        ->  the fee term alone
+
+  scale  0.0x  A3-A2 recovered     -82,307 +/-   67,994  *
+  scale  1.0x  A3-A2 recovered    -116,756 +/-   64,210  *
+  scale  2.0x  A3-A2 recovered    -117,252 +/-   62,376  *
+
+============================================================================================
+DECOMPOSITION
+============================================================================================
+
+recovered_inr
+    A3-A2 at  0.0x :     -82,307.3 +/- 67,993.8
+    A3-A2 at  1.0x :    -116,755.5 +/- 64,209.7
+    A3-A2 at  2.0x :    -117,252.0 +/- 62,376.1
+    cancellation term (intercept, s=0) :     -87,965.9
+    fee term          (slope, per 1x)  :     -17,472.3
+
+attempts_spent
+    A3-A2 at  0.0x :        -105.7 +/- 42.1
+    A3-A2 at  1.0x :        -104.3 +/- 44.0
+    A3-A2 at  2.0x :        -119.9 +/- 43.0
+    cancellation term (intercept, s=0) :        -102.9
+    fee term          (slope, per 1x)  :          -7.1
+
+fees_inflicted_inr
+    A3-A2 at  0.0x :     -16,649.8 +/- 8,463.6
+    A3-A2 at  1.0x :     -17,298.8 +/- 7,427.6
+    A3-A2 at  2.0x :     -22,319.7 +/- 8,141.9
+    cancellation term (intercept, s=0) :     -15,921.2
+    fee term          (slope, per 1x)  :      -2,835.0
+
+mandates_auto_cancelled
+    A3-A2 at  0.0x :          -2.9 +/- 1.7
+    A3-A2 at  1.0x :          -3.2 +/- 1.7
+    A3-A2 at  2.0x :          -3.3 +/- 1.6
+    cancellation term (intercept, s=0) :          -2.9
+    fee term          (slope, per 1x)  :          -0.2
+
+  The slope is a local linearisation over the sampled range: the
+  objective is linear in the fee scale but the decision is an argmax,
+  so all three points are printed rather than only the fit.
+
+wrote results\feesweep10.json

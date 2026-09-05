@@ -1,0 +1,522 @@
+{
+  "metrics": {
+    "A0": {
+      "recovered_inr": [
+        4230168.0,
+        3928260.0,
+        4814179.0,
+        4207253.0,
+        4342860.0
+      ],
+      "attempts_spent": [
+        3218.0,
+        2854.0,
+        3245.0,
+        2913.0,
+        2842.0
+      ],
+      "fees_inflicted_inr": [
+        87379.0,
+        57289.0,
+        48380.0,
+        48439.0,
+        48085.0
+      ],
+      "mandates_auto_cancelled": [
+        10.0,
+        12.0,
+        16.0,
+        10.0,
+        7.0
+      ],
+      "contacts_sent": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "recovered_per_attempt": [
+        1314.533250466128,
+        1376.4050455501051,
+        1483.5682588597842,
+        1444.3024373498113,
+        1528.0999296270231
+      ]
+    },
+    "A1": {
+      "recovered_inr": [
+        3987113.0,
+        3517590.0,
+        4673644.0,
+        3964858.0,
+        4268568.0
+      ],
+      "attempts_spent": [
+        1602.0,
+        1483.0,
+        1676.0,
+        1499.0,
+        1544.0
+      ],
+      "fees_inflicted_inr": [
+        72570.0,
+        41359.0,
+        52864.0,
+        49324.0,
+        31447.0
+      ],
+      "mandates_auto_cancelled": [
+        8.0,
+        10.0,
+        11.0,
+        15.0,
+        6.0
+      ],
+      "contacts_sent": [
+        140.0,
+        136.0,
+        112.0,
+        136.0,
+        78.0
+      ],
+      "recovered_per_attempt": [
+        2488.834581772784,
+        2371.9420094403235,
+        2788.5704057279236,
+        2645.0020013342228,
+        2764.6165803108806
+      ]
+    },
+    "A2": {
+      "recovered_inr": [
+        4165320.0,
+        3626736.0,
+        4657932.0,
+        3978722.0,
+        4061009.0
+      ],
+      "attempts_spent": [
+        1597.0,
+        1487.0,
+        1718.0,
+        1515.0,
+        1514.0
+      ],
+      "fees_inflicted_inr": [
+        67496.0,
+        38645.0,
+        59118.0,
+        53808.0,
+        43070.0
+      ],
+      "mandates_auto_cancelled": [
+        12.0,
+        8.0,
+        16.0,
+        9.0,
+        6.0
+      ],
+      "contacts_sent": [
+        134.0,
+        111.0,
+        97.0,
+        133.0,
+        90.0
+      ],
+      "recovered_per_attempt": [
+        2608.215403882279,
+        2438.9616677874915,
+        2711.2526193247963,
+        2626.2191419141914,
+        2682.3044914134744
+      ]
+    },
+    "A3": {
+      "recovered_inr": [
+        4025171.0,
+        3478137.0,
+        4514187.0,
+        3708871.0,
+        3994031.0
+      ],
+      "attempts_spent": [
+        1496.0,
+        1371.0,
+        1558.0,
+        1375.0,
+        1451.0
+      ],
+      "fees_inflicted_inr": [
+        54575.0,
+        28497.0,
+        32391.0,
+        31683.0,
+        24013.0
+      ],
+      "mandates_auto_cancelled": [
+        5.0,
+        6.0,
+        8.0,
+        8.0,
+        5.0
+      ],
+      "contacts_sent": [
+        274.0,
+        279.0,
+        264.0,
+        293.0,
+        170.0
+      ],
+      "recovered_per_attempt": [
+        2690.6223262032086,
+        2536.934354485777,
+        2897.424261874198,
+        2697.360727272727,
+        2752.605789110958
+      ]
+    },
+    "A4": {
+      "recovered_inr": [
+        3970386.0,
+        3392028.0,
+        4532680.0,
+        3670432.0,
+        3986722.0
+      ],
+      "attempts_spent": [
+        1472.0,
+        1387.0,
+        1574.0,
+        1390.0,
+        1456.0
+      ],
+      "fees_inflicted_inr": [
+        50091.0,
+        30503.0,
+        36934.0,
+        27553.0,
+        24780.0
+      ],
+      "mandates_auto_cancelled": [
+        4.0,
+        6.0,
+        8.0,
+        7.0,
+        5.0
+      ],
+      "contacts_sent": [
+        281.0,
+        274.0,
+        249.0,
+        285.0,
+        149.0
+      ],
+      "recovered_per_attempt": [
+        2697.273097826087,
+        2445.5861571737564,
+        2879.720457433291,
+        2640.598561151079,
+        2738.1332417582416
+      ]
+    }
+  },
+  "diagnostics": {
+    "A0": [
+      {
+        "seed": 7,
+        "successes": 1415,
+        "dead_cause_attempts": 1421,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": NaN,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 0
+      },
+      {
+        "seed": 8,
+        "successes": 1351,
+        "dead_cause_attempts": 1174,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": NaN,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 0
+      },
+      {
+        "seed": 9,
+        "successes": 1485,
+        "dead_cause_attempts": 1492,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": NaN,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 0
+      },
+      {
+        "seed": 10,
+        "successes": 1364,
+        "dead_cause_attempts": 1248,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": NaN,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 0
+      },
+      {
+        "seed": 11,
+        "successes": 1411,
+        "dead_cause_attempts": 1136,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": NaN,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 0
+      }
+    ],
+    "A1": [
+      {
+        "seed": 7,
+        "successes": 1279,
+        "dead_cause_attempts": 36,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.025,
+        "propensity_auc": 0.8157876522702104,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3768
+      },
+      {
+        "seed": 8,
+        "successes": 1194,
+        "dead_cause_attempts": 40,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8885835913312693,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3626
+      },
+      {
+        "seed": 9,
+        "successes": 1457,
+        "dead_cause_attempts": 29,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8094884428664589,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3822
+      },
+      {
+        "seed": 10,
+        "successes": 1262,
+        "dead_cause_attempts": 28,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.852359781121751,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3379
+      },
+      {
+        "seed": 11,
+        "successes": 1365,
+        "dead_cause_attempts": 28,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": 0.7791788856304985,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3464
+      }
+    ],
+    "A2": [
+      {
+        "seed": 7,
+        "successes": 1280,
+        "dead_cause_attempts": 38,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.025,
+        "propensity_auc": 0.8206326135105205,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3761
+      },
+      {
+        "seed": 8,
+        "successes": 1236,
+        "dead_cause_attempts": 38,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8994969040247678,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3512
+      },
+      {
+        "seed": 9,
+        "successes": 1409,
+        "dead_cause_attempts": 31,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8154843851894791,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3904
+      },
+      {
+        "seed": 10,
+        "successes": 1250,
+        "dead_cause_attempts": 37,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.860875512995896,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3542
+      },
+      {
+        "seed": 11,
+        "successes": 1292,
+        "dead_cause_attempts": 27,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": 0.7703445747800587,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3585
+      }
+    ],
+    "A3": [
+      {
+        "seed": 7,
+        "successes": 1280,
+        "dead_cause_attempts": 15,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.025,
+        "propensity_auc": 0.8206326135105205,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3192
+      },
+      {
+        "seed": 8,
+        "successes": 1213,
+        "dead_cause_attempts": 12,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8994969040247678,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 2911
+      },
+      {
+        "seed": 9,
+        "successes": 1377,
+        "dead_cause_attempts": 14,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8154843851894791,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 3260
+      },
+      {
+        "seed": 10,
+        "successes": 1224,
+        "dead_cause_attempts": 10,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.860875512995896,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 2971
+      },
+      {
+        "seed": 11,
+        "successes": 1300,
+        "dead_cause_attempts": 13,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": 0.7703445747800587,
+        "commons_engaged_payer_days": 0,
+        "commons_mandates_deferred": 0,
+        "decisions": 2942
+      }
+    ],
+    "A4": [
+      {
+        "seed": 7,
+        "successes": 1253,
+        "dead_cause_attempts": 18,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.025,
+        "propensity_auc": 0.8206326135105205,
+        "commons_engaged_payer_days": 87,
+        "commons_mandates_deferred": 95,
+        "decisions": 3312
+      },
+      {
+        "seed": 8,
+        "successes": 1222,
+        "dead_cause_attempts": 12,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8994969040247678,
+        "commons_engaged_payer_days": 71,
+        "commons_mandates_deferred": 79,
+        "decisions": 2913
+      },
+      {
+        "seed": 9,
+        "successes": 1370,
+        "dead_cause_attempts": 18,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.8154843851894791,
+        "commons_engaged_payer_days": 91,
+        "commons_mandates_deferred": 99,
+        "decisions": 3373
+      },
+      {
+        "seed": 10,
+        "successes": 1242,
+        "dead_cause_attempts": 11,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.016666666666666666,
+        "propensity_auc": 0.860875512995896,
+        "commons_engaged_payer_days": 89,
+        "commons_mandates_deferred": 94,
+        "decisions": 2988
+      },
+      {
+        "seed": 11,
+        "successes": 1310,
+        "dead_cause_attempts": 17,
+        "blocked_window_hits": 0,
+        "cold_start_share": 0.0,
+        "propensity_auc": 0.7703445747800587,
+        "commons_engaged_payer_days": 100,
+        "commons_mandates_deferred": 126,
+        "decisions": 3058
+      }
+    ]
+  },
+  "seeds": [
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "payers": 120,
+  "months": 10,
+  "warmup": 5,
+  "generator_sha256": "8184e39fbfeb920d7e8fdd97d4b6f2ff260d6baa66d3be3dff370f64a7849d74"
+}
