@@ -12,3 +12,5 @@ results/*.pkl
 results/*.json
 results/*.html
 results/*.txt
+results/CHAIN_*
+run_chain.sh
