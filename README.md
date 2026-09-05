@@ -197,12 +197,13 @@ pip install -r requirements.txt
 python -m pytest tests/ -q
 ```
 
-**The suite takes about 8 minutes, and that is deliberate — it has not hung.** The
-calibration assertions roll a full 400-payer, 6-month world and check it against the
-documented figures in `FREEZE.md` (68–74% blended success, month-end degradation, cause
-mix, endogenous revocation, and the generator hash). That rollout is cached to one
-execution, but it is genuinely expensive. A slow test that asserts something beats a fast
-one that asserts nothing — which is what these two files were before.
+**The suite takes roughly two minutes on an idle machine — it has not hung.** Most of
+that is the calibration assertions, which roll a full 400-payer, 6-month world and check
+it against the documented figures in `FREEZE.md` (68–74% blended success, month-end
+degradation, cause mix, endogenous revocation, and the generator hash). That rollout is
+cached to one execution but is genuinely expensive, and it will stretch to eight minutes
+or more if something else is using the cores. A slow test that asserts something beats a
+fast one that asserts nothing — which is what two of these files were before.
 
 ```bash
 python -m eval.run --seeds 20 --payers 120
