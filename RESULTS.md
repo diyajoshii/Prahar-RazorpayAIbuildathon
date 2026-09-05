@@ -103,38 +103,53 @@ It engaged on **87.6 payer-days per seed** and deferred **98.6 mandates** — th
 ran at measurable volume — and its effect on every metric is within noise of A3. That is
 a more useful statement than "unvalidated", which would imply it was never exercised.
 
-### 4. The fee term is not what drives A3's behaviour
+### 4. The fee term is real but small — and smaller than the project assumed
 
 `use_cost_terms` gates the fee term and the cancellation term together, so the fee sweep
-was designed to separate them: at 0× the fee term is multiplied out of existence, leaving
-the cancellation term alone, and the slope in the fee scale is the fee term alone.
+separates them: at 0× the fee term is multiplied out of existence, leaving the
+cancellation term alone, and movement across the fee scale is the fee term alone.
+
+**10 seeds, 60 rollouts** (an earlier 3-seed pass is superseded — its intervals looked
+*narrower* than these by luck, and its points were non-monotonic, which is exactly the
+small-sample artifact more seeds were meant to resolve).
 
 ```
-A3 - A2, Rs recovered
-  0.0x  -105,600 +/- 32,189
-  1.0x  -141,121 +/- 40,678
-  2.0x  -108,514 +/- 38,951
-
-A3 - A2, Rs fees inflicted
-  0.0x   -16,795 +/-  8,366
-  1.0x   -16,304 +/-  9,282
-  2.0x   -19,175 +/- 11,712
+A3 - A2                     0.0x              1.0x              2.0x
+Rs recovered            -82,307 ± 67,994  -116,756 ± 64,210  -117,252 ± 62,376
+Rs fees inflicted       -16,650 ±  8,464   -17,299 ±  7,428   -22,320 ±  8,142
+mandates auto-cancelled     -2.9 ±    1.7      -3.2 ±    1.7      -3.3 ±    1.6
 ```
 
-**The decomposition does not support a linear read and no slope is reported.** The three
-points are non-monotonic and their intervals overlap heavily: zeroing or doubling the
-published bounce-fee schedule does not detectably change what A3 does, on 3 seeds.
+Every metric is now monotonic in the fee scale. But the per-point intervals are wide, so
+the informative test is the **seed-paired** one — the same seeds run at every scale, so
+the world cancels out:
 
-The honest conclusion is uncomfortable for the project's framing. **A3's advantage comes
-from the cancellation term, not the fee term.** Even the 40% reduction in fees inflicted
-survives at 0× fees (−16,795), which means it is a by-product of making fewer attempts
-overall rather than of pricing the fee. The claim "attempts are customer-billed, so the
-objective must price them" is *not* mechanically demonstrated by this evidence. What is
-demonstrated is that pricing the **consequence of failure** — mandate cancellation —
-produces restraint, and the fee reduction follows from the restraint.
+```
+fee effect, paired          0x -> 1x                    0x -> 2x
+Rs recovered           -34,448 ± 44,999  ns        -34,945 ± 52,540  ns
+attempts spent              +1.4 ±  8.3  ns            -14.2 ±  15.4  ns
+Rs fees inflicted          -649 ± 2,584  ns         -5,670 ±  4,001  SIGNIFICANT
+mandates auto-cancelled     -0.3 ±  0.5  ns             -0.4 ±   0.3  SIGNIFICANT
+```
 
-Caveat in both directions: 3 seeds, and wide intervals. This rules out a large fee-term
-effect; it does not rule out a small one.
+**The mechanism is real: pricing the fee does change behaviour.** Doubling the published
+schedule significantly reduces both the fees inflicted on customers and the mandates
+destroyed. The objective is responding to the fee exactly as designed.
+
+**But at India's actual published fee levels it is not the driver.** At 1× — the real
+HDFC/ICICI/IDFC schedules — no metric moves detectably relative to 0×. The intercept
+carries almost everything: the cancellation term alone accounts for −16,650 of the
+−17,299 reduction in fees inflicted. Even A3's headline 40% cut in customer fees is
+mostly a *by-product of making fewer attempts*, not of pricing the fee.
+
+So the project's central claim — *attempts are customer-billed, therefore the objective
+must price them* — is **partially supported, and weaker than stated**. Pricing them
+works, measurably. It would take roughly a doubling of current Indian bounce fees before
+that channel, rather than cancellation risk, became the main reason to restrain a retry.
+What actually produces the restraint today is pricing the **consequence of failure**.
+
+Honest bounds in both directions: 10 seeds rules out a large fee effect on recovery at
+1×; it does not rule out a small one, and the 2× results show the channel is live.
 
 ---
 

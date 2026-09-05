@@ -29,7 +29,7 @@ with 95% confidence intervals:
 **What did not survive:**
 
 1. **Payday-rhythm learning.** Isolating the cash calendar (A2−A1) gives +0.38% recovery, not significant. Payer-specific liquidity curves add nothing over a population-level day-of-month prior *in this world*.
-2. **The fee term.** Zeroing or doubling the bounce-fee schedule does not detectably change behaviour. The advantage comes from pricing *cancellation*, not from pricing the fee — which was the project's central premise.
+2. **The fee term, partially.** Pricing the bounce fee *does* change behaviour — at 2× the published schedule it significantly cuts both customer fees and destroyed mandates. But at India's actual fee levels the effect is not separable from noise, and the restraint comes from pricing *cancellation* instead. The central premise holds as a mechanism and fails as the main driver.
 3. **The commons layer.** Fired at measurable volume (87.6 payer-days/seed) and moved nothing beyond noise.
 4. **The fixed-point correction.** Converged cleanly on 10/10 seeds and bought ~1pp. The shortfall is structural.
 

@@ -182,6 +182,7 @@ def main() -> None:
                    "collection_rate_held_at": rate,
                    "generator_sha256": World.generator_sha256()},
         "decomposition": payload_terms,
+        "paired_fee_effect": paired,
         "raw": {str(s): results[s] for s in results},
     }, indent=2), encoding="utf-8")
     print(f"\nwrote {out}")
