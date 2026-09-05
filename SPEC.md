@@ -1,6 +1,6 @@
 # SPEC.md — the problem, and what to build
 
-Read this with `CLAUDE.md`. That file holds the invariants you must not break.
+Read this with `ARCHITECTURE.md`. That file holds the invariants you must not break.
 This one holds the problem you are solving and the components still to build.
 
 ---
@@ -182,7 +182,7 @@ file, it will eventually sell it.
 ## 11. `prahar/allocator.py` — the core
 
 Given a mandate, its cause routing, the cash calendar, the propensity model, and
-the constraint set, choose **one action** from the bounded set in `CLAUDE.md` §4.
+the constraint set, choose **one action** from the bounded set in `ARCHITECTURE.md` §4.
 
 Compute expected value in rupees for each *permitted* action and take the
 argmax. Log every candidate's EV, not just the winner — the audit trail should
@@ -320,7 +320,7 @@ handled gracefully" is explicitly asked for.
 - [ ] Cold-start share reported
 - [ ] Parser accuracy on held-out strings reported
 - [ ] Decision trace renders, including one graceful `UNKNOWN`
-- [ ] README carries the honest limitations from `CLAUDE.md` §9
+- [ ] README carries the honest limitations from `ARCHITECTURE.md` §9
 - [ ] Generator SHA matches the freeze commit
 
 If Prahar does **not** beat the baselines, report that. A negative result

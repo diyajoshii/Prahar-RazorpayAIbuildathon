@@ -1,7 +1,7 @@
 """
-Executable versions of the CLAUDE.md invariants.
+Executable versions of the ARCHITECTURE.md invariants.
 
-Each invariant in CLAUDE.md §3 is a decision someone could quietly undo in a
+Each invariant in ARCHITECTURE.md §3 is a decision someone could quietly undo in a
 later edit, and most of them would not break anything visibly -- the results
 would simply get better, which is exactly what makes them dangerous. These tests
 make the invariants fail loudly instead.

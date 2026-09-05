@@ -93,7 +93,7 @@ class Context:
     """Everything observable about a decision. No hidden world state appears here.
 
     Built by the harness from `Mandate.observable()`, `Payer.observable()` and
-    the payer's own outcome history -- exactly the surface `CLAUDE.md` §3.2
+    the payer's own outcome history -- exactly the surface `ARCHITECTURE.md` §3.2
     permits.
     """
     payer_id: str
@@ -158,7 +158,7 @@ class WalkForwardCalendars:
     this generalise to a new person"; walk-forward answers "was this knowable at
     the time". Both are required, and they are independent.
 
-    Note that using a payer's *own past* is entirely legitimate -- `CLAUDE.md`
+    Note that using a payer's *own past* is entirely legitimate -- `ARCHITECTURE.md`
     §3.2 explicitly permits past attempt outcomes. The violation is using their
     future.
     """

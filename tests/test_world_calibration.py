@@ -49,7 +49,7 @@ if early and late:
 #
 # Everything above prints a table a human has to eyeball. Nothing fails if the
 # world drifts, which means the calibration claims in FREEZE.md were resting on
-# someone remembering to look. Same failure shape as CLAUDE.md 3.9: a check
+# someone remembering to look. Same failure shape as ARCHITECTURE.md 3.9: a check
 # that looks like a guarantee and is not.
 #
 # The targets come from FREEZE.md and are documented industry figures, not

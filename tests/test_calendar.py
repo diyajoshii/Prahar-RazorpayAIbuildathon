@@ -3,7 +3,7 @@ Tests for the cash calendar.
 
 WHAT THIS FILE IS ALLOWED TO DO THAT THE POLICY IS NOT
 ------------------------------------------------------
-These tests read `Payer.salary_day`, which `CLAUDE.md` §3.2 forbids the policy
+These tests read `Payer.salary_day`, which `ARCHITECTURE.md` §3.2 forbids the policy
 from touching. That distinction is the entire point: *measuring* whether the
 inference works is legitimate science; *using* the answer to make a decision is
 cheating. Nothing in `prahar/` reads a hidden field -- only this file does, and

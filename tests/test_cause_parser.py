@@ -112,7 +112,7 @@ if __name__ == "__main__":
 # Assertions
 #
 # Everything above this line is a reporting script: it prints, and nothing
-# fails. That is exactly the failure mode CLAUDE.md 3.9 is about -- a check
+# fails. That is exactly the failure mode ARCHITECTURE.md 3.9 is about -- a check
 # that looks like a guarantee and is not. `pytest` collected nothing from this
 # file, so the parser could have regressed to zero silently.
 #

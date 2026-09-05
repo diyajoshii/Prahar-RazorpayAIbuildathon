@@ -1,7 +1,7 @@
 """
 A tripwire on the world's hidden state.
 
-`CLAUDE.md` §3.2 says the policy may not read `Payer.balance`,
+`ARCHITECTURE.md` §3.2 says the policy may not read `Payer.balance`,
 `Payer.salary_day` or `Payer._spend_path`. A rule like that is worth nothing if
 nothing enforces it: the violation would be a single plausible-looking line, the
 results would improve, and the improvement would be indistinguishable from
@@ -74,7 +74,7 @@ def _make_descriptor(name: str, strict: bool):
         who = _caller_is_policy()
         if who is not None:
             msg = (f"policy code read hidden field Payer.{name} at {who}. "
-                   "CLAUDE.md 3.2 forbids this; inferring liquidity from the "
+                   "ARCHITECTURE.md 3.2 forbids this; inferring liquidity from the "
                    "observable signal alone is the problem being solved.")
             _violations.append(msg)
             if strict:

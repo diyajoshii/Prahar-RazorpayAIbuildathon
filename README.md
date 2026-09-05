@@ -137,7 +137,7 @@ Each of these made the numbers look better, which is what made them dangerous.
 
 4. **The cash calendar never reached the allocator.** `WalkForwardCalendars._by_month` is keyed only on months present in the history it was built from — and at decision time the timestamp is always in the *current* month, which by construction is never in that history. Every lookup missed, fell through to an empty calendar, and served a flat 0.72 to every payer for an entire evaluation. It was also train/serve skew, which is worse than starvation: training rows were built from real per-month curves, so the model learned to lean on `liquidity_p` and was then handed a constant forever.
 
-   The harness had been reporting `cold-start share = 100%` the whole time. That was an accurate alarm, and it was "fixed" by patching the reporting path — which removed the only evidence anything was wrong. See `CLAUDE.md` §3.9.
+   The harness had been reporting `cold-start share = 100%` the whole time. That was an accurate alarm, and it was "fixed" by patching the reporting path — which removed the only evidence anything was wrong. See `ARCHITECTURE.md` §3.9.
 
 5. **The ablation ladder's rungs were not one change each.** `PropensityModel` was gated on the same flag as the calendar, so A1 had no learned model at all and A1→A2 added the cash calendar *and* LightGBM together. The A2−A1 delta — the one quantity the project's central claim rests on — was measuring two things at once. `test_ablation_flags_are_one_change_per_rung` passed throughout, because it compared four config booleans rather than the wiring behind them.
 
@@ -231,4 +231,4 @@ python data/generator.py
 
 `python -m prahar.llm` is a diagnostic that prints the active provider; it needs `GOOGLE_API_KEY` or `ANTHROPIC_API_KEY` in a gitignored `.env` (see `.env.example`). Nothing in the evaluation makes a network call — the cause parser falls back to the deterministic rules table so results stay reproducible.
 
-See `FREEZE.md` for why the generator was committed before any policy code, and exactly what the policy is and is not allowed to observe. `CLAUDE.md` holds the invariants; `SPEC.md` holds the problem and the build order.
+See `FREEZE.md` for why the generator was committed before any policy code, and exactly what the policy is and is not allowed to observe. `ARCHITECTURE.md` holds the invariants; `SPEC.md` holds the problem and the build order.
